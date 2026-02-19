@@ -10,6 +10,12 @@ export default defineConfig({
       '/collision-vs-year': 'http://localhost:8000',
       '/monte-carlo': 'http://localhost:8000',
       '/petri-net': 'http://localhost:8000',
+      '/celestrak': 'http://localhost:8000',
+      '/calculate-from-celestrak': 'http://localhost:8000',
+      '/calculate-enhanced': 'http://localhost:8000',
+      '/simulate-breakup': 'http://localhost:8000',
+      '/predict-decay': 'http://localhost:8000',
+      '/propagate-orbit': 'http://localhost:8000',
     }
   }
 })

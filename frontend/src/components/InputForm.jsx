@@ -50,6 +50,16 @@ const styles = {
     marginTop: '0.5rem',
     marginLeft: '0.5rem',
   },
+  btnTertiary: {
+    padding: '0.5rem 1rem',
+    borderRadius: '8px',
+    border: '1px solid var(--border)',
+    background: 'transparent',
+    color: 'var(--text-muted)',
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+  },
 }
 
 export default function InputForm({ onCalculate, onRunPetriNet, loading }) {
@@ -65,6 +75,10 @@ export default function InputForm({ onCalculate, onRunPetriNet, loading }) {
     perigee_km: 400,
     apogee_km: 500,
   })
+  const [noradId, setNoradId] = useState('25544')
+  const [celestrakLoading, setCelestrakLoading] = useState(false)
+  const [celestrakName, setCelestrakName] = useState(null)
+  const [celestrakError, setCelestrakError] = useState(null)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -105,6 +119,38 @@ export default function InputForm({ onCalculate, onRunPetriNet, loading }) {
     onRunPetriNet(buildPayload())
   }
 
+  const handleLoadCelestrak = async () => {
+    const id = parseInt(noradId, 10)
+    if (!id || id < 1) {
+      setCelestrakError('Enter a valid NORAD ID (e.g. 25544 for ISS)')
+      return
+    }
+    setCelestrakError(null)
+    setCelestrakName(null)
+    setCelestrakLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/celestrak/satellite/${id}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || res.statusText)
+      }
+      const data = await res.json()
+      setForm((f) => ({
+        ...f,
+        altitude: data.altitude_km,
+        inclination: data.inclination,
+        orbit_type: data.orbit_type || 'circular',
+        perigee_km: data.perigee_km ?? f.perigee_km,
+        apogee_km: data.apogee_km ?? f.apogee_km,
+      }))
+      setCelestrakName(data.name || `NORAD ${id}`)
+    } catch (e) {
+      setCelestrakError(e.message || 'Failed to fetch from Celestrak')
+    } finally {
+      setCelestrakLoading(false)
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -118,6 +164,32 @@ export default function InputForm({ onCalculate, onRunPetriNet, loading }) {
       }}
     >
       <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Input Parameters</h2>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={styles.field}>
+          <label style={styles.label}>NORAD ID (Celestrak)</label>
+          <input
+            type="text"
+            placeholder="e.g. 25544"
+            value={noradId}
+            onChange={(e) => setNoradId(e.target.value)}
+            style={{ ...styles.input, width: '120px' }}
+          />
+        </div>
+        <button
+          type="button"
+          style={styles.btnTertiary}
+          onClick={handleLoadCelestrak}
+          disabled={celestrakLoading}
+        >
+          {celestrakLoading ? 'Loading…' : 'Load orbit from Celestrak'}
+        </button>
+        {celestrakName && (
+          <span style={{ color: 'var(--accent)', fontSize: '0.9rem' }}>Loaded: {celestrakName}</span>
+        )}
+        {celestrakError && (
+          <span style={{ color: '#f87171', fontSize: '0.85rem' }}>{celestrakError}</span>
+        )}
+      </div>
       <div style={styles.form}>
         <div style={styles.field}>
           <label style={styles.label}>Debris Diameter (mm)</label>

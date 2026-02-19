@@ -4,6 +4,10 @@ import InputForm from './components/InputForm'
 import CollisionGraph from './components/CollisionGraph'
 import PetriNetAnimation from './components/PetriNetAnimation'
 import MonteCarloResult from './components/MonteCarloResult'
+import EnhancedCalculation from './components/EnhancedCalculation'
+import BreakupSimulation from './components/BreakupSimulation'
+import OrbitalDecay from './components/OrbitalDecay'
+import SGP4Propagation from './components/SGP4Propagation'
 
 const API_BASE = ''
 
@@ -27,6 +31,7 @@ export default function App() {
   const [petriPayload, setPetriPayload] = useState(null)
   const [petriTrigger, setPetriTrigger] = useState(0)
   const [monteCarloData, setMonteCarloData] = useState(null)
+  const [activeTab, setActiveTab] = useState('basic')
 
   const handleCalculate = useCallback(async (payload) => {
     setLoading(true)
@@ -73,11 +78,44 @@ export default function App() {
           Space Debris Collision Probability Prediction
         </h1>
         <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-          NASA SSP30425-based model • Petri Net • Poisson • Monte Carlo
+          NASA SSP30425-based model • Petri Net • Poisson • Monte Carlo • Enhanced Features
         </p>
       </motion.header>
 
-      <InputForm
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+        <button
+          onClick={() => setActiveTab('basic')}
+          style={{
+            padding: '0.5rem 1rem',
+            border: 'none',
+            background: activeTab === 'basic' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'basic' ? 'var(--bg-dark)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'basic' ? 600 : 400,
+            borderRadius: '6px 6px 0 0',
+          }}
+        >
+          Basic Calculation
+        </button>
+        <button
+          onClick={() => setActiveTab('enhanced')}
+          style={{
+            padding: '0.5rem 1rem',
+            border: 'none',
+            background: activeTab === 'enhanced' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'enhanced' ? 'var(--bg-dark)' : 'var(--text-muted)',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'enhanced' ? 600 : 400,
+            borderRadius: '6px 6px 0 0',
+          }}
+        >
+          Enhanced Features
+        </button>
+      </div>
+
+      {activeTab === 'basic' && (
+        <>
+          <InputForm
         onCalculate={handleCalculate}
         onRunPetriNet={handleRunPetriNet}
         loading={loading}
@@ -139,6 +177,19 @@ export default function App() {
           <MonteCarloResult data={monteCarloData} />
         </div>
       </div>
+        </>
+      )}
+
+      {activeTab === 'enhanced' && (
+        <div style={{ display: 'grid', gap: '1.5rem' }}>
+          <EnhancedCalculation />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+            <BreakupSimulation />
+            <OrbitalDecay />
+          </div>
+          <SGP4Propagation />
+        </div>
+      )}
     </div>
   )
 }
