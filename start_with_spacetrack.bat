@@ -5,8 +5,8 @@ echo ========================================
 echo.
 
 REM Set your Space-Track credentials here
-set SPACETRACK_USER=RIDDHESHMORANKAR@GMAIL.COM
-set SPACETRACK_PASS=QWERTYuiop1234567890
+set SPACETRACK_USER=riddheshmorankar@53
+set SPACETRACK_PASS=QWERTYuiop12345678901234567890
 
 echo Credentials set:
 echo Username: %SPACETRACK_USER%
