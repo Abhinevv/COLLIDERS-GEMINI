@@ -121,35 +121,70 @@ class SpaceTrackAPI:
     
     def get_high_risk_debris(self, altitude_min=200, altitude_max=2000, limit=50):
         """
-        Get high-risk debris in LEO (Low Earth Orbit)
+        Get high-risk debris in LEO (Low Earth Orbit) with VALID TLE data
         
         Args:
             altitude_min: Minimum altitude in km
             altitude_max: Maximum altitude in km
-            limit: Maximum results
+            limit: Maximum results (will fetch more and filter for valid TLEs)
         
         Returns:
-            list: High-risk debris objects
+            list: High-risk debris objects with valid TLE data
         """
         if not self.authenticated:
             if not self.authenticate():
                 return []
         
         try:
-            # Query for objects - don't filter by altitude in query, do it after
-            # Space-Track GP (General Perturbations) table doesn't have APOGEE/PERIGEE columns
+            # Fetch MORE debris than requested to account for invalid TLEs
+            fetch_limit = limit * 2  # Fetch 2x to ensure we get enough valid ones
+            
+            # Query for objects
             query_url = (
                 f"{self.base_url}/basicspacedata/query/class/gp/"
                 f"OBJECT_TYPE/DEBRIS/"
-                f"orderby/NORAD_CAT_ID desc/limit/{limit}/format/json"
+                f"orderby/NORAD_CAT_ID desc/limit/{fetch_limit}/format/json"
             )
             
             response = self.session.get(query_url, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"✓ Found {len(data)} debris objects")
-                return data
+                print(f"✓ Fetched {len(data)} debris objects from Space-Track")
+                
+                # Filter for debris with valid TLE data
+                valid_debris = []
+                
+                for debris in data:
+                    # Check if TLE lines exist and are not empty
+                    if ('TLE_LINE1' in debris and 'TLE_LINE2' in debris and
+                        debris['TLE_LINE1'] and debris['TLE_LINE2'] and
+                        len(debris['TLE_LINE1']) == 69 and  # Valid TLE line 1 length
+                        len(debris['TLE_LINE2']) == 69):    # Valid TLE line 2 length
+                        
+                        # Basic TLE format validation
+                        try:
+                            tle1 = debris['TLE_LINE1']
+                            tle2 = debris['TLE_LINE2']
+                            
+                            # Check line numbers (1 and 2)
+                            if tle1[0] == '1' and tle2[0] == '2':
+                                # Check eccentricity is valid (< 1.0 for orbiting objects)
+                                eccentricity_str = tle2[26:33]
+                                eccentricity = float('0.' + eccentricity_str)
+                                
+                                if 0 <= eccentricity < 1.0:
+                                    valid_debris.append(debris)
+                                    
+                                    # Stop when we have enough valid debris
+                                    if len(valid_debris) >= limit:
+                                        break
+                        except:
+                            # Skip debris with malformed TLE data
+                            continue
+                
+                print(f"✓ Filtered {len(valid_debris)} debris with valid TLE format")
+                return valid_debris
             
             return []
             

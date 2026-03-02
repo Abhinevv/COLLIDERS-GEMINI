@@ -6,7 +6,7 @@ Handles database connections and operations
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool
 from .models import Base
 import logging
 
@@ -33,12 +33,16 @@ class DatabaseManager:
         # Ensure data directory exists
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
-        # Create engine
+        # Create engine with NullPool for better multi-threading support
+        # NullPool creates a new connection for each request and closes it immediately
         db_url = f'sqlite:///{self.db_path}'
         self.engine = create_engine(
             db_url,
-            connect_args={'check_same_thread': False},
-            poolclass=StaticPool,
+            connect_args={
+                'check_same_thread': False,
+                'timeout': 30  # 30 second timeout for locks
+            },
+            poolclass=NullPool,  # No connection pooling - better for SQLite threading
             echo=False  # Set to True for SQL debugging
         )
         
@@ -68,6 +72,14 @@ class DatabaseManager:
         """
         if session:
             session.close()
+    
+    def remove_thread_session(self):
+        """
+        Remove the current thread's session from the scoped session registry.
+        This is useful for background threads to ensure they get a fresh session.
+        """
+        if self.Session:
+            self.Session.remove()
     
     def reset_database(self):
         """Drop all tables and recreate them (USE WITH CAUTION)"""

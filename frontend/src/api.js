@@ -101,6 +101,12 @@ export async function getDebrisTLE(noradId) {
   return res.json()
 }
 
+export async function getRelevantDebrisForSatellite(satelliteId, limit = 50) {
+  const res = await fetch(`${BASE}/api/satellite/${satelliteId}/relevant_debris?limit=${limit}`)
+  if (!res.ok) throw new Error(`Get relevant debris failed: ${res.status}`)
+  return res.json()
+}
+
 export default {
   BASE,
   getHealth,
@@ -115,7 +121,8 @@ export default {
   getHighRiskDebris,
   getRecentDebris,
   getDebrisDetails,
-  getDebrisTLE
+  getDebrisTLE,
+  getRelevantDebrisForSatellite
 }
 
 // Phase 2: Alerts API

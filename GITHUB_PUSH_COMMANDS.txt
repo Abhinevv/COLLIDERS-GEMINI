@@ -1,0 +1,16 @@
+# GitHub Push Commands
+
+After creating your repository on GitHub, run these commands:
+
+# Add the remote repository (replace YOUR_USERNAME with your GitHub username)
+git remote add origin https://github.com/YOUR_USERNAME/AstroCleanAI.git
+
+# Rename branch to main (if needed)
+git branch -M main
+
+# Push to GitHub
+git push -u origin main
+
+# If you get authentication errors, you may need to use a Personal Access Token
+# Go to: GitHub Settings > Developer settings > Personal access tokens > Generate new token
+# Use the token as your password when prompted

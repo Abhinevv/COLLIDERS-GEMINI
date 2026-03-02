@@ -22,7 +22,9 @@ class TLECacheManager:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_file = self.cache_dir / 'cache_metadata.json'
+        self.json_cache_file = self.cache_dir / 'tle_cache.json'
         self.min_cache_age_seconds = 3600  # 1 hour minimum
+        self._json_cache = None  # Lazy load JSON cache
         
     def get_cache_metadata(self):
         """Get cache metadata (last update time, object count)"""
@@ -57,7 +59,20 @@ class TLECacheManager:
     def get_cache_age_minutes(self):
         """Get cache age in minutes"""
         metadata = self.get_cache_metadata()
+        
+        # Check JSON cache if metadata doesn't exist
         if not metadata['last_update']:
+            json_cache = self._load_json_cache()
+            if json_cache and 'last_update' in json_cache:
+                # Parse ISO format timestamp
+                try:
+                    from dateutil import parser
+                    last_update_dt = parser.parse(json_cache['last_update'])
+                    age_seconds = (datetime.now(last_update_dt.tzinfo) - last_update_dt).total_seconds()
+                    return age_seconds / 60
+                except:
+                    # Fallback: assume cache is fresh if JSON exists
+                    return 0.0
             return float('inf')
         
         age_seconds = time.time() - metadata['last_update_timestamp']
@@ -79,24 +94,44 @@ class TLECacheManager:
         age_min = self.get_cache_age_minutes()
         return False, f"Cache is fresh ({age_min:.1f} min old, need 60+ min)"
     
+    def _load_json_cache(self):
+        """Load the JSON cache file if it exists"""
+        if self._json_cache is not None:
+            return self._json_cache
+        
+        if self.json_cache_file.exists():
+            with open(self.json_cache_file, 'r') as f:
+                self._json_cache = json.load(f)
+                return self._json_cache
+        
+        return None
+    
     def get_tle_from_cache(self, norad_id):
         """Get TLE for specific NORAD ID from cache"""
-        tle_file = self.cache_dir / f'tle_{norad_id}.txt'
+        norad_id_str = str(norad_id)
         
-        if not tle_file.exists():
-            return None
+        # Try individual file first
+        tle_file = self.cache_dir / f'tle_{norad_id_str}.txt'
         
-        # Check if cache is stale
-        if not self.is_cache_fresh():
-            return None
+        if tle_file.exists():
+            with open(tle_file, 'r') as f:
+                lines = f.read().strip().split('\n')
+                if len(lines) >= 3:
+                    return {
+                        'name': lines[0],
+                        'tle_line1': lines[1],
+                        'tle_line2': lines[2]
+                    }
         
-        with open(tle_file, 'r') as f:
-            lines = f.read().strip().split('\n')
-            if len(lines) >= 3:
+        # Try JSON cache as fallback
+        json_cache = self._load_json_cache()
+        if json_cache and 'objects' in json_cache:
+            obj = json_cache['objects'].get(norad_id_str)
+            if obj:
                 return {
-                    'name': lines[0],
-                    'tle_line1': lines[1],
-                    'tle_line2': lines[2]
+                    'name': obj.get('name', f'OBJECT {norad_id_str}'),
+                    'tle_line1': obj['tle_line1'],
+                    'tle_line2': obj['tle_line2']
                 }
         
         return None

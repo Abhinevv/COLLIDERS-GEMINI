@@ -55,10 +55,12 @@ class OrbitPropagator:
             
             # Create satellite object using SGP4
             self.satellite = Satrec.twoline2rv(line1, line2)
-            print(f"[OK] Loaded TLE for: {self.name}")
+            # Suppress success messages to reduce log noise
+            # print(f"[OK] Loaded TLE for: {self.name}")
             
         except Exception as e:
-            print(f"[ERROR] Error loading TLE: {e}")
+            # Suppress error messages - let caller handle errors
+            # print(f"[ERROR] Error loading TLE: {e}")
             raise
     
     def _extract_tle_info(self, line1, line2):

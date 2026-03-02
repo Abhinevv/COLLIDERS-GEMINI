@@ -13,6 +13,18 @@ export default function CollisionAnalysis() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
 
+  // Format probability with scientific notation for very small values
+  function formatProbability(prob) {
+    const percentage = prob * 100
+    if (percentage === 0) {
+      return '0 (no collision)'
+    } else if (percentage < 0.0000001) {
+      return `${percentage.toExponential(2)}%`
+    } else {
+      return `${percentage.toFixed(7)}%`
+    }
+  }
+
   useEffect(() => {
     loadSatellites()
   }, [])
@@ -220,7 +232,7 @@ export default function CollisionAnalysis() {
                   className="probability-value"
                   style={{ color: getRiskLevel(result.probability).color }}
                 >
-                  {(result.probability * 100).toFixed(4)}%
+                  {formatProbability(result.probability)}
                 </div>
                 <div 
                   className="risk-badge"

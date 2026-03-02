@@ -4,6 +4,7 @@ import DebrisTracker from './components/DebrisTracker'
 import CollisionAnalysis from './components/CollisionAnalysis'
 import RiskRanking from './components/RiskRanking'
 import SatelliteRiskProfile from './components/SatelliteRiskProfile'
+import EnhancedFeatures from './components/EnhancedFeatures'
 import Alerts from './components/Alerts'
 import ManeuverPlanner from './components/ManeuverPlanner'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -53,6 +54,12 @@ export default function App() {
             🛰️ Satellite Profile
           </button>
           <button 
+            className={`nav-tab ${activeTab === 'enhanced' ? 'active' : ''}`}
+            onClick={() => setActiveTab('enhanced')}
+          >
+            🔬 Enhanced Features
+          </button>
+          <button 
             className={`nav-tab ${activeTab === 'alerts' ? 'active' : ''}`}
             onClick={() => setActiveTab('alerts')}
           >
@@ -69,13 +76,30 @@ export default function App() {
 
       <main className="app-main">
         <ErrorBoundary>
-          {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} />}
-          {activeTab === 'debris' && <DebrisTracker />}
-          {activeTab === 'collision' && <CollisionAnalysis />}
-          {activeTab === 'ranking' && <RiskRanking />}
-          {activeTab === 'profile' && <SatelliteRiskProfile />}
-          {activeTab === 'alerts' && <Alerts />}
-          {activeTab === 'maneuver' && <ManeuverPlanner />}
+          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
+            <Dashboard onNavigate={setActiveTab} />
+          </div>
+          <div style={{ display: activeTab === 'debris' ? 'block' : 'none' }}>
+            <DebrisTracker />
+          </div>
+          <div style={{ display: activeTab === 'collision' ? 'block' : 'none' }}>
+            <CollisionAnalysis />
+          </div>
+          <div style={{ display: activeTab === 'ranking' ? 'block' : 'none' }}>
+            <RiskRanking />
+          </div>
+          <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}>
+            <SatelliteRiskProfile />
+          </div>
+          <div style={{ display: activeTab === 'enhanced' ? 'block' : 'none' }}>
+            <EnhancedFeatures />
+          </div>
+          <div style={{ display: activeTab === 'alerts' ? 'block' : 'none' }}>
+            <Alerts />
+          </div>
+          <div style={{ display: activeTab === 'maneuver' ? 'block' : 'none' }}>
+            <ManeuverPlanner />
+          </div>
         </ErrorBoundary>
       </main>
 

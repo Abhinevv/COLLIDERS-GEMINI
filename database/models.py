@@ -88,6 +88,9 @@ class DebrisObject(Base):
     perigee_km = Column(Float)
     inclination_deg = Column(Float)
     period_minutes = Column(Float)
+    tle_line1 = Column(String(200))  # TLE Line 1 for position calculations
+    tle_line2 = Column(String(200))  # TLE Line 2 for position calculations
+    tle_epoch = Column(DateTime)  # TLE epoch time
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     def to_dict(self):
@@ -103,6 +106,7 @@ class DebrisObject(Base):
             'perigee_km': self.perigee_km,
             'inclination_deg': self.inclination_deg,
             'period_minutes': self.period_minutes,
+            'tle_epoch': self.tle_epoch.isoformat() if self.tle_epoch else None,
             'last_updated': self.last_updated.isoformat() if self.last_updated else None
         }
 

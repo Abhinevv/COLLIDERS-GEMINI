@@ -11,6 +11,18 @@ export default function Alerts() {
     min_probability: 0.001
   });
 
+  // Format probability with scientific notation for very small values
+  function formatProbability(prob) {
+    const percentage = prob * 100
+    if (percentage === 0) {
+      return '0 (no collision)'
+    } else if (percentage < 0.0000001) {
+      return `${percentage.toExponential(2)}%`
+    } else {
+      return `${percentage.toFixed(7)}%`
+    }
+  }
+
   useEffect(() => {
     loadAlerts();
     const interval = setInterval(loadAlerts, 30000); // Refresh every 30s
@@ -214,7 +226,7 @@ export default function Alerts() {
                 <div>
                   <div style={{ opacity: 0.7, fontSize: '12px', marginBottom: '5px' }}>Collision Probability</div>
                   <div style={{ fontSize: '24px', fontWeight: '700', color: getRiskColor(alert.risk_level) }}>
-                    {(alert.probability * 100).toFixed(4)}%
+                    {formatProbability(alert.probability)}
                   </div>
                 </div>
 

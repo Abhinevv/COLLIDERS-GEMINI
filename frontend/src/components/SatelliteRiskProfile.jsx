@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getHighRiskDebris, startDebrisJob, getDebrisJob } from '../api'
+import { getRelevantDebrisForSatellite, startDebrisJob, getDebrisJob } from '../api'
 
 export default function SatelliteRiskProfile() {
   const [satellites, setSatellites] = useState([])
@@ -10,10 +10,39 @@ export default function SatelliteRiskProfile() {
   const [results, setResults] = useState([])
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [debrisLimit, setDebrisLimit] = useState(50) // Changed from 100 to 50
+
+  // Format probability - Scientific notation only
+  function formatProbability(prob) {
+    const percentage = prob * 100
+    
+    if (percentage === 0) {
+      return '0.00e+0%'
+    }
+    
+    // Always use scientific notation
+    return `${percentage.toExponential(2)}%`
+  }
+  
+  // Helper to format large numbers (1M, 1B, etc)
+  function formatOdds(num) {
+    if (num >= 1e12) return (num/1e12).toFixed(1) + 'T'
+    if (num >= 1e9) return (num/1e9).toFixed(1) + 'B'
+    if (num >= 1e6) return (num/1e6).toFixed(1) + 'M'
+    if (num >= 1e3) return (num/1e3).toFixed(1) + 'K'
+    return num.toLocaleString()
+  }
 
   useEffect(() => {
     loadData()
   }, [])
+
+  // Load debris when satellite changes
+  useEffect(() => {
+    if (selectedSatellite) {
+      loadDebrisForSatellite()
+    }
+  }, [selectedSatellite, debrisLimit])
 
   async function loadData() {
     setLoading(true)
@@ -26,11 +55,23 @@ export default function SatelliteRiskProfile() {
         setSatellites(satData.satellites)
         setSelectedSatellite(satData.satellites[0].norad_id)
       }
-      
-      // Load all debris (we'll filter based on selected satellite)
-      const debrisData = await getHighRiskDebris(200, 2000, 500)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadDebrisForSatellite() {
+    if (!selectedSatellite) return
+    
+    try {
+      setLoading(true)
+      // Load debris relevant to this specific satellite's orbit
+      const debrisData = await getRelevantDebrisForSatellite(selectedSatellite, debrisLimit)
       if (debrisData.high_risk_debris) {
         setDebrisList(debrisData.high_risk_debris)
+        console.log(`Loaded ${debrisData.high_risk_debris.length} relevant debris for satellite ${selectedSatellite}`)
       }
     } catch (err) {
       setError(err.message)
@@ -40,82 +81,18 @@ export default function SatelliteRiskProfile() {
   }
 
   function filterRelevantDebris(satelliteNorad, allDebris) {
-    // Get satellite info
-    const satellite = satellites.find(s => s.norad_id === satelliteNorad)
-    if (!satellite || !allDebris.length) return allDebris.slice(0, 100)
-
-    // Filter and score debris
-    const scored = allDebris.map(debris => {
-      let score = 0
-      
-      // Size score (larger = more dangerous)
-      const sizeScore = { 'LARGE': 100, 'MEDIUM': 50, 'SMALL': 20 }
-      score += sizeScore[debris.rcs_size] || 10
-      
-      // Parse orbital parameters from Space-Track data
-      const semiMajorAxis = parseFloat(debris.semi_major_axis) || 0
-      const inclination = parseFloat(debris.inclination_deg) || 0
-      const eccentricity = parseFloat(debris.eccentricity) || 0
-      const meanMotion = parseFloat(debris.mean_motion) || 0
-      
-      // Calculate approximate altitude from semi-major axis (if available)
-      // altitude ≈ semi_major_axis - Earth radius (6371 km)
-      let altitude = 0
-      if (semiMajorAxis > 0) {
-        altitude = semiMajorAxis - 6371
-      } else if (meanMotion > 0) {
-        // Fallback: estimate from mean motion (revs/day)
-        // altitude ≈ (42164 / (meanMotion/15.04)^(2/3)) - 6371
-        const period = 1440 / meanMotion // minutes
-        altitude = Math.pow(period / 1.658669, 1.5) - 6371
-      }
-      
-      // Altitude score (prefer LEO range 200-1200 km)
-      if (altitude > 0) {
-        if (altitude >= 200 && altitude <= 1200) {
-          // In LEO range - good
-          const altitudeDiff = Math.abs(altitude - 600)
-          score += Math.max(0, 50 - altitudeDiff / 10)
-        } else if (altitude < 200 || altitude > 2000) {
-          // Too low or too high - penalize
-          score -= 30
-        }
-      }
-      
-      // Inclination score (prefer 40-110° for crossing orbits)
-      if (inclination > 0) {
-        if (inclination >= 40 && inclination <= 110) {
-          const inclinationDiff = Math.abs(inclination - 75)
-          score += Math.max(0, 30 - inclinationDiff / 2)
-        } else {
-          // Polar or equatorial - less likely to cross
-          score -= 20
-        }
-      }
-      
-      // Eccentricity penalty (higher = less predictable)
-      if (eccentricity > 0) {
-        if (eccentricity < 0.2) {
-          score += 20 // Circular orbit bonus
-        } else {
-          score -= eccentricity * 50
-        }
-      }
-
-      return { ...debris, threatScore: score, calculatedAltitude: altitude }
-    })
-
-    // Sort by threat score (highest first)
-    scored.sort((a, b) => b.threatScore - a.threatScore)
-    
-    // Return top 100 most relevant threats
-    // If we have less than 100, return what we have
-    return scored.slice(0, Math.min(100, scored.length))
+    // No longer needed - API does the filtering
+    return allDebris
   }
 
   async function analyzeSatellite() {
-    if (!selectedSatellite || debrisList.length === 0) {
-      setError('No satellite or debris data available')
+    if (!selectedSatellite) {
+      setError('Please select a satellite')
+      return
+    }
+
+    if (debrisList.length === 0) {
+      setError('No debris data loaded. Please wait for debris to load or try selecting a different satellite.')
       return
     }
 
@@ -124,12 +101,14 @@ export default function SatelliteRiskProfile() {
     setProgress(0)
     setResults([])
     
-    // Filter debris relevant to this satellite's orbit
-    const relevantDebris = filterRelevantDebris(selectedSatellite, debrisList)
+    // Use the debris list (already filtered by API)
+    const relevantDebris = debrisList
     
     const total = relevantDebris.length
     let completed = 0
     const analysisResults = []
+
+    console.log(`Starting analysis of ${total} debris objects for satellite ${selectedSatellite}`)
 
     try {
       // Process in batches - HIGH ACCURACY MODE
@@ -168,7 +147,7 @@ export default function SatelliteRiskProfile() {
             }
 
             if (jobStatus.status === 'completed' && jobStatus.result) {
-              return {
+              const result = {
                 debris_id: debris.norad_id,
                 debris_name: debris.name || debris.norad_id,
                 debris_size: debris.rcs_size,
@@ -177,6 +156,8 @@ export default function SatelliteRiskProfile() {
                 min_distance: jobStatus.result.min_distance_km,
                 risk_level: getRiskLevel(jobStatus.result.probability || 0).level
               }
+              console.log(`Result for debris ${debris.norad_id}:`, result)
+              return result
             } else if (jobStatus.status === 'failed') {
               console.error(`Job ${jobId} failed:`, jobStatus.error)
               return null
@@ -191,15 +172,21 @@ export default function SatelliteRiskProfile() {
         })
 
         const batchResults = await Promise.all(batchPromises)
-        analysisResults.push(...batchResults.filter(r => r !== null))
+        const validResults = batchResults.filter(r => r !== null)
+        console.log(`Batch completed: ${validResults.length} valid results out of ${batchResults.length}`)
+        analysisResults.push(...validResults)
         
         completed += batch.length
         setProgress(Math.round((completed / total) * 100))
       }
 
+      console.log(`Analysis complete! Total results: ${analysisResults.length}`)
+
       // Sort by probability (highest first)
       analysisResults.sort((a, b) => b.probability - a.probability)
       setResults(analysisResults)
+      
+      console.log(`Results set:`, analysisResults)
       
     } catch (err) {
       setError(err.message)
@@ -218,7 +205,7 @@ export default function SatelliteRiskProfile() {
 
   const selectedSatInfo = satellites.find(s => s.norad_id === selectedSatellite)
   const threatsDetected = results.filter(r => r.probability > 0).length
-  const relevantDebrisCount = selectedSatellite ? filterRelevantDebris(selectedSatellite, debrisList).length : debrisList.length
+  const relevantDebrisCount = debrisList.length
 
   if (loading) {
     return (
@@ -350,7 +337,7 @@ export default function SatelliteRiskProfile() {
                       </div>
                       <div className="table-cell probability">
                         <span className="probability-value">
-                          {(result.probability * 100).toFixed(4)}%
+                          {formatProbability(result.probability)}
                         </span>
                       </div>
                       <div className="table-cell risk">

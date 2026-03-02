@@ -4,33 +4,65 @@ import { getHighRiskDebris, startDebrisJob, getDebrisJob } from '../api'
 export default function RiskRanking() {
   const [satellites, setSatellites] = useState([])
   const [debrisList, setDebrisList] = useState([])
-  const [riskMatrix, setRiskMatrix] = useState([])
   const [loading, setLoading] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [error, setError] = useState(null)
-  const [analysisMode, setAnalysisMode] = useState('fast') // 'fast' or 'full'
+  const [activeTab, setActiveTab] = useState('fast')
+  
+  // Separate state for each analysis mode
+  const [fastAnalysis, setFastAnalysis] = useState({
+    analyzing: false,
+    progress: 0,
+    results: [],
+    complete: false
+  })
+  
+  const [smartAnalysis, setSmartAnalysis] = useState({
+    analyzing: false,
+    progress: 0,
+    results: [],
+    complete: false
+  })
+
+  // Format probability with scientific notation for very small values
+  function formatProbability(prob) {
+    const percentage = prob * 100
+    if (percentage === 0) {
+      return '0 (no collision)'
+    } else if (percentage < 0.0000001) {
+      return `${percentage.toExponential(2)}%`
+    } else {
+      return `${percentage.toFixed(7)}%`
+    }
+  }
 
   useEffect(() => {
     loadData()
   }, [])
 
+  // Auto-start both analyses after data loads
+  useEffect(() => {
+    if (satellites.length > 0 && debrisList.length > 0 && !fastAnalysis.complete && !smartAnalysis.complete) {
+      console.log('Auto-starting parallel analyses...')
+      // Start both analyses simultaneously
+      analyzeRisks('fast')
+      analyzeRisks('smart')
+    }
+  }, [satellites, debrisList])
+
   async function loadData() {
     setLoading(true)
     setError(null)
     try {
-      // Fetch managed satellites and debris
       const satResponse = await fetch('http://localhost:5000/api/satellites/manage')
       const satData = await satResponse.json()
       
-      const debrisData = await getHighRiskDebris(200, 2000, 2000) // Get 2000 debris objects (good balance)
+      const debrisData = await getHighRiskDebris(200, 2000, 2000)
       
       if (satData.satellites) {
         setSatellites(satData.satellites)
       }
       
       if (debrisData.high_risk_debris) {
-        // Sort debris by RCS size (larger objects are more dangerous)
         const sortedDebris = debrisData.high_risk_debris
           .sort((a, b) => {
             const sizeOrder = { 'LARGE': 3, 'MEDIUM': 2, 'SMALL': 1 }
@@ -39,7 +71,7 @@ export default function RiskRanking() {
             return sizeB - sizeA
           })
         
-        setDebrisList(sortedDebris) // Use all 2000 debris objects
+        setDebrisList(sortedDebris)
       }
     } catch (err) {
       setError(err.message)
@@ -48,45 +80,81 @@ export default function RiskRanking() {
     }
   }
 
-  async function analyzeAllRisks(mode = 'fast') {
+  async function analyzeRisks(mode) {
     if (satellites.length === 0 || debrisList.length === 0) {
       setError('No satellites or debris data available')
       return
     }
 
-    setAnalyzing(true)
-    setAnalysisMode(mode)
-    setError(null)
-    setProgress(0)
+    // Set analyzing state for the specific mode
+    const setAnalysisState = mode === 'fast' ? setFastAnalysis : setSmartAnalysis
+    
+    setAnalysisState(prev => ({ ...prev, analyzing: true, progress: 0 }))
     
     const results = []
+    let allCombinations = []
     
-    // Choose subset based on mode
-    const selectedSatellites = mode === 'fast' ? satellites.slice(0, 10) : satellites
-    const selectedDebris = mode === 'fast' ? debrisList.slice(0, 100) : debrisList // Fast: top 100, Full: all 2000
-    const total = selectedSatellites.length * selectedDebris.length
-    let completed = 0
-
-    // Analysis parameters based on mode
-    const params = mode === 'fast' 
-      ? { duration: 10, step: 120, samples: 100, batchSize: 5, pollInterval: 500 }
-      : { duration: 15, step: 90, samples: 200, batchSize: 3, pollInterval: 1000 }
-
-    try {
-      // Process in batches for better performance
-      const allCombinations = []
-      
-      for (const sat of selectedSatellites) {
-        for (const debris of selectedDebris) {
+    // Choose combinations based on mode
+    if (mode === 'smart') {
+      for (const sat of satellites) {
+        for (const debris of debrisList) {
           allCombinations.push({ sat, debris })
         }
       }
+    } else {
+      // Fast Mode: Use intelligent screening to find close pairs
+      try {
+        setAnalysisState(prev => ({ ...prev, progress: 5 }))
+        
+        const screeningResponse = await fetch('http://localhost:5000/api/find_close_pairs?threshold_km=25&max_satellites=50&max_debris=2000')
+        const screeningData = await screeningResponse.json()
+        
+        if (screeningData.status === 'success' && screeningData.close_pairs) {
+          // Build combinations from close pairs only
+          for (const pair of screeningData.close_pairs) {
+            const sat = pair.satellite
+            for (const debrisInfo of pair.close_debris) {
+              allCombinations.push({ 
+                sat, 
+                debris: { norad_id: debrisInfo.norad_id, name: debrisInfo.name },
+                initialDistance: debrisInfo.distance_km
+              })
+            }
+          }
+          
+          console.log(`Fast Mode: Found ${allCombinations.length} close pairs to analyze`)
+          setAnalysisState(prev => ({ ...prev, progress: 10 }))
+        } else {
+          setError('No close satellite-debris pairs found within 25km')
+          setAnalysisState(prev => ({ ...prev, analyzing: false }))
+          return
+        }
+      } catch (err) {
+        setError(`Screening failed: ${err.message}`)
+        setAnalysisState(prev => ({ ...prev, analyzing: false }))
+        return
+      }
+    }
+    
+    if (allCombinations.length === 0) {
+      setError('No combinations to analyze')
+      setAnalysisState(prev => ({ ...prev, analyzing: false }))
+      return
+    }
+    
+    const total = allCombinations.length
+    let completed = 0
 
+    // Analysis parameters based on mode
+    const params = mode === 'smart'
+      ? { duration: 15, step: 90, samples: 200, batchSize: 10, pollInterval: 500, screeningThreshold: 50.0 }
+      : { duration: 10, step: 120, samples: 100, batchSize: 5, pollInterval: 500, screeningThreshold: 1000.0 }
+
+    try {
       for (let i = 0; i < allCombinations.length; i += params.batchSize) {
         const batch = allCombinations.slice(i, i + params.batchSize)
         
-        // Process batch in parallel
-        const batchPromises = batch.map(async ({ sat, debris }) => {
+        const batchPromises = batch.map(async ({ sat, debris, initialDistance }) => {
           try {
             const payload = {
               debris: debris.norad_id,
@@ -94,17 +162,17 @@ export default function RiskRanking() {
               duration_minutes: params.duration,
               step_seconds: params.step,
               samples: params.samples,
-              position_uncertainty_km: 2.0,  // High accuracy: realistic TLE uncertainty
+              position_uncertainty_km: 2.0,
+              screening_threshold_km: params.screeningThreshold,
               debris_radius_km: 0.5,
               satellite_radius_km: 0.01,
               visualize: false,
-              use_improved_accuracy: true  // Enable high accuracy mode
+              use_improved_accuracy: true
             }
 
             const jobResponse = await startDebrisJob(payload)
             const jobId = jobResponse.job_id
 
-            // Poll for completion
             let jobStatus = await getDebrisJob(jobId)
             let attempts = 0
             const maxAttempts = mode === 'fast' ? 60 : 120
@@ -121,7 +189,8 @@ export default function RiskRanking() {
                 debris: debris.name || debris.norad_id,
                 debrisId: debris.norad_id,
                 probability: jobStatus.result.probability || 0,
-                riskLevel: getRiskLevel(jobStatus.result.probability || 0).level
+                riskLevel: getRiskLevel(jobStatus.result.probability || 0).level,
+                initialDistance: initialDistance || null
               }
             }
           } catch (err) {
@@ -134,16 +203,21 @@ export default function RiskRanking() {
         results.push(...batchResults.filter(r => r !== null))
         
         completed += batch.length
-        setProgress(Math.round((completed / total) * 100))
+        const progressPercent = Math.round((completed / total) * 100)
+        setAnalysisState(prev => ({ ...prev, progress: progressPercent }))
       }
 
       // Sort by probability (highest first)
       results.sort((a, b) => b.probability - a.probability)
-      setRiskMatrix(results)
+      setAnalysisState(prev => ({ 
+        ...prev, 
+        analyzing: false, 
+        results, 
+        complete: true 
+      }))
     } catch (err) {
       setError(err.message)
-    } finally {
-      setAnalyzing(false)
+      setAnalysisState(prev => ({ ...prev, analyzing: false }))
     }
   }
 
@@ -155,6 +229,77 @@ export default function RiskRanking() {
     return { level: 'CRITICAL', color: '#f44336', icon: '🚨' }
   }
 
+  function renderResults(results, mode) {
+    if (results.length === 0) {
+      return (
+        <div className="empty-state">
+          <div className="empty-icon">📊</div>
+          <h3>Analysis Running</h3>
+          <p>Results will appear here as the analysis progresses...</p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="risk-matrix-container">
+        <h3>Risk Matrix Results</h3>
+        <p className="matrix-subtitle">Ranked by collision probability (highest risk first)</p>
+        
+        <div className="risk-table">
+          <div className="table-header">
+            <div className="header-cell rank">Rank</div>
+            <div className="header-cell satellite">Satellite</div>
+            <div className="header-cell debris">Debris Object</div>
+            <div className="header-cell probability">Probability</div>
+            <div className="header-cell risk">Risk Level</div>
+          </div>
+          
+          {results.map((item, index) => {
+            const risk = getRiskLevel(item.probability)
+            return (
+              <div key={index} className="table-row">
+                <div className="table-cell rank">
+                  <span className="rank-badge">{index + 1}</span>
+                </div>
+                <div className="table-cell satellite">
+                  <div className="cell-content">
+                    <strong>{item.satellite}</strong>
+                    <span className="cell-id">NORAD: {item.satelliteId}</span>
+                  </div>
+                </div>
+                <div className="table-cell debris">
+                  <div className="cell-content">
+                    <strong>{item.debris}</strong>
+                    <span className="cell-id">ID: {item.debrisId}</span>
+                  </div>
+                </div>
+                <div className="table-cell probability">
+                  <span className="probability-value">
+                    {formatProbability(item.probability)}
+                  </span>
+                </div>
+                <div className="table-cell risk">
+                  <span 
+                    className="risk-badge"
+                    style={{ backgroundColor: risk.color }}
+                  >
+                    {risk.icon} {risk.level}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {results.filter(r => r.probability > 0).length === 0 && (
+          <div className="no-risk-message">
+            ✅ Excellent news! No collision risks detected for any satellite-debris combinations.
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -164,11 +309,16 @@ export default function RiskRanking() {
     )
   }
 
+  const currentAnalysis = activeTab === 'fast' ? fastAnalysis : smartAnalysis
+  const modeInfo = activeTab === 'fast' 
+    ? { name: 'Fast Mode', combinations: 'Variable (close pairs only)', threshold: '25km', duration: '5-10 min' }
+    : { name: 'Smart Analysis', combinations: `${satellites.length * debrisList.length} (${satellites.length} x ${debrisList.length})`, threshold: '50km', duration: '1-2 hrs' }
+
   return (
     <div className="risk-ranking">
       <div className="ranking-header">
         <h2>Collision Risk Ranking</h2>
-        <p>Analyze and rank collision probabilities between satellites and space debris</p>
+        <p>Parallel analysis of collision probabilities - both modes running simultaneously</p>
       </div>
 
       <div className="ranking-controls">
@@ -181,40 +331,35 @@ export default function RiskRanking() {
             <span className="summary-label">Debris Objects:</span>
             <span className="summary-value">{debrisList.length}</span>
           </div>
-          <div className="summary-item">
-            <span className="summary-label">Total Combinations:</span>
-            <span className="summary-value">{satellites.length * debrisList.length}</span>
-          </div>
         </div>
 
-        <div className="analysis-buttons">
+        {/* Tab Navigation */}
+        <div className="analysis-tabs">
           <button 
-            className="analyze-btn fast-btn"
-            onClick={() => analyzeAllRisks('fast')}
-            disabled={analyzing || satellites.length === 0 || debrisList.length === 0}
+            className={`tab-btn ${activeTab === 'fast' ? 'active' : ''}`}
+            onClick={() => setActiveTab('fast')}
           >
-            {analyzing && analysisMode === 'fast' ? (
-              <>
-                <span className="spinner"></span>
-                Fast Mode... {progress}%
-              </>
-            ) : (
-              '⚡ Fast Mode (Top 10 x 100)'
+            <span className="tab-icon">⚡</span>
+            <span className="tab-label">Fast Mode (Top 50, 25km)</span>
+            {fastAnalysis.analyzing && (
+              <span className="tab-progress">{fastAnalysis.progress}%</span>
+            )}
+            {fastAnalysis.complete && !fastAnalysis.analyzing && (
+              <span className="tab-complete">✓</span>
             )}
           </button>
           
           <button 
-            className="analyze-btn full-btn"
-            onClick={() => analyzeAllRisks('full')}
-            disabled={analyzing || satellites.length === 0 || debrisList.length === 0}
+            className={`tab-btn ${activeTab === 'smart' ? 'active' : ''}`}
+            onClick={() => setActiveTab('smart')}
           >
-            {analyzing && analysisMode === 'full' ? (
-              <>
-                <span className="spinner"></span>
-                Full Analysis... {progress}%
-              </>
-            ) : (
-              `🚀 Full Analysis (All ${satellites.length * debrisList.length})`
+            <span className="tab-icon">🎯</span>
+            <span className="tab-label">Smart Analysis (50km)</span>
+            {smartAnalysis.analyzing && (
+              <span className="tab-progress">{smartAnalysis.progress}%</span>
+            )}
+            {smartAnalysis.complete && !smartAnalysis.analyzing && (
+              <span className="tab-complete">✓</span>
             )}
           </button>
         </div>
@@ -226,92 +371,38 @@ export default function RiskRanking() {
         </div>
       )}
 
-      {analyzing && (
+      {/* Progress indicator for current tab */}
+      {currentAnalysis.analyzing && (
         <div className="progress-container">
-          <h3>{analysisMode === 'fast' ? 'Fast Analysis' : 'Full Analysis'} in Progress</h3>
+          <h3>{modeInfo.name} in Progress</h3>
           <div className="progress-bar">
             <div 
               className="progress-fill" 
-              style={{ width: `${progress}%` }}
+              style={{ width: `${currentAnalysis.progress}%` }}
             ></div>
           </div>
-          <p>{progress}% complete - Analyzing {analysisMode === 'fast' ? '1,000 combinations (10 x 100)' : `${satellites.length * debrisList.length} combinations (${satellites.length} x ${debrisList.length})`}</p>
+          <p>{currentAnalysis.progress}% complete - Analyzing {modeInfo.combinations} combinations</p>
           <p className="progress-note">
-            {analysisMode === 'fast' 
-              ? 'Fast mode: 100 samples, 10 min duration, batch size 5 (~10-15 minutes)'
-              : 'Full mode: 200 samples, 15 min duration, batch size 3 - This will take 4-6 hours!'
+            {activeTab === 'fast' 
+              ? 'Fast mode: Top 50 satellites with debris within 25km - Only real threats analyzed'
+              : 'Smart mode: 200 samples, 15 min duration, 50km screening (~1-2 hours)'
             }
           </p>
         </div>
       )}
 
-      {riskMatrix.length > 0 && (
-        <div className="risk-matrix-container">
-          <h3>Risk Matrix Results</h3>
-          <p className="matrix-subtitle">Ranked by collision probability (highest risk first)</p>
-          
-          <div className="risk-table">
-            <div className="table-header">
-              <div className="header-cell rank">Rank</div>
-              <div className="header-cell satellite">Satellite</div>
-              <div className="header-cell debris">Debris Object</div>
-              <div className="header-cell probability">Probability</div>
-              <div className="header-cell risk">Risk Level</div>
-            </div>
-            
-            {riskMatrix.map((item, index) => {
-              const risk = getRiskLevel(item.probability)
-              return (
-                <div key={index} className="table-row">
-                  <div className="table-cell rank">
-                    <span className="rank-badge">{index + 1}</span>
-                  </div>
-                  <div className="table-cell satellite">
-                    <div className="cell-content">
-                      <strong>{item.satellite}</strong>
-                      <span className="cell-id">NORAD: {item.satelliteId}</span>
-                    </div>
-                  </div>
-                  <div className="table-cell debris">
-                    <div className="cell-content">
-                      <strong>{item.debris}</strong>
-                      <span className="cell-id">ID: {item.debrisId}</span>
-                    </div>
-                  </div>
-                  <div className="table-cell probability">
-                    <span className="probability-value">
-                      {(item.probability * 100).toFixed(4)}%
-                    </span>
-                  </div>
-                  <div className="table-cell risk">
-                    <span 
-                      className="risk-badge"
-                      style={{ backgroundColor: risk.color }}
-                    >
-                      {risk.icon} {risk.level}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {riskMatrix.filter(r => r.probability > 0).length === 0 && (
-            <div className="no-risk-message">
-              ✅ Excellent news! No collision risks detected for any satellite-debris combinations.
-            </div>
-          )}
+      {/* Status banner when complete */}
+      {currentAnalysis.complete && !currentAnalysis.analyzing && (
+        <div className="analysis-status">
+          <span className="status-icon">✓</span>
+          <span className="status-text">
+            {modeInfo.name} Complete: {currentAnalysis.results.length} combinations analyzed
+          </span>
         </div>
       )}
 
-      {!analyzing && riskMatrix.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-icon">📊</div>
-          <h3>No Analysis Yet</h3>
-          <p>Click "Analyze All Risks" to calculate collision probabilities for all satellite-debris combinations.</p>
-          <p className="empty-note">Note: This analysis may take several minutes to complete.</p>
-        </div>
-      )}
+      {/* Results for current tab */}
+      {renderResults(currentAnalysis.results, activeTab)}
     </div>
   )
 }
