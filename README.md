@@ -1,4 +1,4 @@
-# AstroCleanAI 🛰️
+# COLLIDERS 🛰️
 
 AI-powered satellite collision avoidance system using real-time orbit tracking, probability modeling, and fuel-efficient maneuver optimization.
 
