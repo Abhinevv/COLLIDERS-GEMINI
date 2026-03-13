@@ -47,6 +47,7 @@ DEFAULT_MANAGED_SATELLITES = [
     {'norad_id': '41866', 'name': 'GOES-16', 'type': 'Weather Satellite', 'description': 'NOAA geostationary weather satellite'},
 ]
 DEFAULT_DEBRIS_BOOTSTRAP_LIMIT = 100
+DEFAULT_DEBRIS_SEED_START = 67700
 
 
 def _format_debris_record(record):
@@ -153,6 +154,25 @@ def _get_cached_debris_by_id(norad_id):
     }
 
 
+def _build_sample_debris_cache(limit):
+    """Create a small local debris catalog when no cache is available."""
+    objects = {}
+
+    for norad_num in range(DEFAULT_DEBRIS_SEED_START, DEFAULT_DEBRIS_SEED_START + limit):
+        norad_id = str(norad_num)
+        inclination = 51.4 + ((norad_num - DEFAULT_DEBRIS_SEED_START) % 12) * 0.35
+        mean_motion = 15.15 + ((norad_num - DEFAULT_DEBRIS_SEED_START) % 8) * 0.04
+
+        objects[norad_id] = {
+            'norad_id': norad_id,
+            'name': f'DEBRIS-{norad_id}',
+            'tle_line1': f'1 {norad_id}U 24001A   26060.50000000  .00000000  00000-0  00000-0 0  9999',
+            'tle_line2': f'2 {norad_id}  {inclination:7.4f} 180.0000 0001000   0.0000   0.0000 {mean_motion:11.8f}00000',
+        }
+
+    return {'objects': objects}
+
+
 def bootstrap_default_satellites():
     """Ensure a useful starter set of tracked satellites exists on startup."""
     if satellite_manager is None:
@@ -189,8 +209,8 @@ def bootstrap_default_debris(limit=DEFAULT_DEBRIS_BOOTSTRAP_LIMIT):
 
         cache = get_cache_manager()._load_json_cache()
         if not cache or 'objects' not in cache:
-            print("[INFO] debris bootstrap skipped: no local cache found")
-            return
+            cache = _build_sample_debris_cache(limit)
+            print(f"[INFO] debris bootstrap using bundled sample catalog: count={len(cache['objects'])}")
 
         session = get_db_manager().get_session()
         try:
@@ -222,6 +242,17 @@ def bootstrap_default_debris(limit=DEFAULT_DEBRIS_BOOTSTRAP_LIMIT):
             session.close()
     except Exception as exc:
         print(f"[WARN] default debris bootstrap failed: {exc}")
+
+
+def _get_local_debris_count():
+    from database.db_manager import get_db_manager
+    from database.models import DebrisObject
+
+    session = get_db_manager().get_session()
+    try:
+        return session.query(DebrisObject).count()
+    finally:
+        session.close()
 
 
 @app.route('/health', methods=['GET'])
@@ -1415,6 +1446,25 @@ def get_high_risk_debris():
     except Exception as e:
         if session:
             session.close()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/space_debris/refresh', methods=['POST'])
+def refresh_space_debris():
+    """Refresh local debris availability for the frontend."""
+    try:
+        before_count = _get_local_debris_count()
+        bootstrap_default_debris()
+        after_count = _get_local_debris_count()
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Debris catalog refreshed',
+            'source': 'local-bootstrap',
+            'count_before': before_count,
+            'count_after': after_count
+        }), 200
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 

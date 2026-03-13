@@ -95,6 +95,14 @@ export async function getDebrisDetails(noradId) {
   return res.json()
 }
 
+export async function refreshSpaceDebris() {
+  const res = await fetch(`${BASE}/api/space_debris/refresh`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error(`Refresh debris failed: ${res.status}`)
+  return res.json()
+}
+
 export async function getDebrisTLE(noradId) {
   const res = await fetch(`${BASE}/api/space_debris/${noradId}/tle`)
   if (!res.ok) throw new Error(`Get debris TLE failed: ${res.status}`)
@@ -121,6 +129,7 @@ export default {
   getHighRiskDebris,
   getRecentDebris,
   getDebrisDetails,
+  refreshSpaceDebris,
   getDebrisTLE,
   getRelevantDebrisForSatellite
 }

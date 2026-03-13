@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { searchSpaceDebris, getHighRiskDebris, getRecentDebris, getDebrisDetails } from '../api'
+import { searchSpaceDebris, getHighRiskDebris, getRecentDebris, getDebrisDetails, refreshSpaceDebris } from '../api'
 import { addStaggeredAnimations } from '../utils/useIntersectionObserver'
 
 export default function DebrisTracker() {
@@ -10,7 +10,9 @@ export default function DebrisTracker() {
   const [recentDebris, setRecentDebris] = useState([])
   const [selectedDebris, setSelectedDebris] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
+  const [refreshMessage, setRefreshMessage] = useState('')
 
   useEffect(() => {
     if (activeView === 'high-risk') {
@@ -83,6 +85,30 @@ export default function DebrisTracker() {
     }
   }
 
+  async function handleRefresh() {
+    setRefreshing(true)
+    setError(null)
+    setRefreshMessage('')
+    try {
+      const data = await refreshSpaceDebris()
+
+      if (activeView === 'high-risk') {
+        await loadHighRiskDebris()
+      } else if (activeView === 'recent') {
+        await loadRecentDebris()
+      } else if (searchQuery.trim()) {
+        const searchData = await searchSpaceDebris(searchQuery)
+        setSearchResults(searchData.debris || [])
+      }
+
+      setRefreshMessage(data.message || 'Debris data refreshed')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   function renderDebrisList(debrisList) {
     if (loading) {
       return (
@@ -144,6 +170,15 @@ export default function DebrisTracker() {
       <div className="tracker-header">
         <h2>Space Debris Tracker</h2>
         <p>Real-time orbital debris tracking powered by Space-Track.org</p>
+        <button
+          className="search-btn"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          type="button"
+        >
+          {refreshing ? 'Refreshing...' : 'Refresh Debris'}
+        </button>
+        {refreshMessage && <div className="success-message">{refreshMessage}</div>}
       </div>
 
       <div className="view-tabs">
