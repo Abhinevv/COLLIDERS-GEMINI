@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getHighRiskDebris, startDebrisJob, getDebrisJob } from '../api'
+import { getHighRiskDebris, startDebrisJob, getDebrisJob, getManagedSatellites, getCatalogSatellites, addManagedSatellite } from '../api'
 
 export default function RiskRanking() {
   const [satellites, setSatellites] = useState([])
@@ -7,6 +7,11 @@ export default function RiskRanking() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('fast')
+  const [catalogQuery, setCatalogQuery] = useState('')
+  const [catalogResults, setCatalogResults] = useState([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogMessage, setCatalogMessage] = useState(null)
+  const [addingSatelliteId, setAddingSatelliteId] = useState(null)
   
   // Separate state for each analysis mode
   const [fastAnalysis, setFastAnalysis] = useState({
@@ -24,10 +29,16 @@ export default function RiskRanking() {
   })
 
   // Format probability with scientific notation for very small values
-  function formatProbability(prob) {
-    const percentage = prob * 100
+  function formatProbability(item) {
+    const probability = item.probability || 0
+    const percentage = probability * 100
     if (percentage === 0) {
-      return '0 (no collision)'
+      const totalSamples = item.totalSamples || 0
+      if (totalSamples > 0) {
+        const upperBoundPercentage = (3 / totalSamples) * 100
+        return `<${upperBoundPercentage.toFixed(6)}%`
+      }
+      return 'Screened safe'
     } else if (percentage < 0.0000001) {
       return `${percentage.toExponential(2)}%`
     } else {
@@ -37,14 +48,14 @@ export default function RiskRanking() {
 
   useEffect(() => {
     loadData()
+    loadCatalogSatellites()
   }, [])
 
   async function loadData() {
     setLoading(true)
     setError(null)
     try {
-      const satResponse = await fetch('http://localhost:5000/api/satellites/manage')
-      const satData = await satResponse.json()
+      const satData = await getManagedSatellites()
       
       const debrisData = await getHighRiskDebris(200, 2000, 2000)
       
@@ -70,11 +81,51 @@ export default function RiskRanking() {
     }
   }
 
+  async function loadCatalogSatellites(query = '') {
+    setCatalogLoading(true)
+    try {
+      const data = await getCatalogSatellites(query, 8)
+      setCatalogResults(data.satellites || [])
+    } catch (err) {
+      setCatalogMessage({ type: 'error', text: err.message })
+    } finally {
+      setCatalogLoading(false)
+    }
+  }
+
+  async function handleCatalogSearch(e) {
+    e.preventDefault()
+    setCatalogMessage(null)
+    await loadCatalogSatellites(catalogQuery)
+  }
+
+  async function handleAddSatellite(satellite) {
+    setAddingSatelliteId(satellite.norad_id)
+    setCatalogMessage(null)
+    try {
+      await addManagedSatellite({
+        norad_id: satellite.norad_id,
+        name: satellite.name,
+        type: satellite.type,
+        description: satellite.description,
+        operator: satellite.operator
+      })
+      setCatalogMessage({ type: 'success', text: `${satellite.name} added to Risk Ranking.` })
+      await loadData()
+    } catch (err) {
+      setCatalogMessage({ type: 'error', text: err.message })
+    } finally {
+      setAddingSatelliteId(null)
+    }
+  }
+
   async function analyzeRisks(mode) {
     if (satellites.length === 0 || debrisList.length === 0) {
       setError('No satellites or debris data available')
       return
     }
+
+    setError(null)
 
     // Set analyzing state for the specific mode
     const setAnalysisState = mode === 'fast' ? setFastAnalysis : setSmartAnalysis
@@ -114,15 +165,37 @@ export default function RiskRanking() {
           
           console.log(`Fast Mode: Found ${allCombinations.length} close pairs to analyze`)
           setAnalysisState(prev => ({ ...prev, progress: 10 }))
-        } else {
-          setError('No close satellite-debris pairs found within 25km')
+        }
+
+        if (allCombinations.length === 0) {
+          const fallbackSatellites = satellites.slice(0, Math.min(satellites.length, 8))
+          const fallbackDebris = debrisList.slice(0, Math.min(debrisList.length, 25))
+
+          for (const sat of fallbackSatellites) {
+            for (const debris of fallbackDebris) {
+              allCombinations.push({ sat, debris })
+            }
+          }
+
+          if (allCombinations.length > 0) {
+            setAnalysisState(prev => ({ ...prev, progress: 10 }))
+          }
+        }
+      } catch (err) {
+        const fallbackSatellites = satellites.slice(0, Math.min(satellites.length, 8))
+        const fallbackDebris = debrisList.slice(0, Math.min(debrisList.length, 25))
+
+        for (const sat of fallbackSatellites) {
+          for (const debris of fallbackDebris) {
+            allCombinations.push({ sat, debris })
+          }
+        }
+
+        if (allCombinations.length === 0) {
+          setError(`Screening failed: ${err.message}`)
           setAnalysisState(prev => ({ ...prev, analyzing: false }))
           return
         }
-      } catch (err) {
-        setError(`Screening failed: ${err.message}`)
-        setAnalysisState(prev => ({ ...prev, analyzing: false }))
-        return
       }
     }
     
@@ -180,7 +253,10 @@ export default function RiskRanking() {
                 debrisId: debris.norad_id,
                 probability: jobStatus.result.probability || 0,
                 riskLevel: getRiskLevel(jobStatus.result.probability || 0).level,
-                initialDistance: initialDistance || null
+                initialDistance: initialDistance || null,
+                totalSamples: jobStatus.result.total_samples || 0,
+                minDistanceKm: jobStatus.result.min_distance_km || null,
+                screening: jobStatus.result.screening || null
               }
             }
           } catch (err) {
@@ -265,7 +341,7 @@ export default function RiskRanking() {
                 </div>
                 <div className="table-cell probability">
                   <span className="probability-value">
-                    {formatProbability(item.probability)}
+                    {formatProbability(item)}
                   </span>
                 </div>
                 <div className="table-cell risk">
@@ -309,6 +385,55 @@ export default function RiskRanking() {
       <div className="ranking-header">
         <h2>Collision Risk Ranking</h2>
         <p>Parallel analysis of collision probabilities - both modes running simultaneously</p>
+      </div>
+
+      <div className="catalog-panel">
+        <div className="catalog-panel-header">
+          <div>
+            <h3>Add More Satellites</h3>
+            <p>Search the live catalog and add satellites into the managed Risk Ranking set.</p>
+          </div>
+          <form className="catalog-search" onSubmit={handleCatalogSearch}>
+            <input
+              type="text"
+              value={catalogQuery}
+              onChange={(e) => setCatalogQuery(e.target.value)}
+              placeholder="Search NORAD ID or satellite name"
+              className="catalog-search-input"
+            />
+            <button type="submit" disabled={catalogLoading}>
+              {catalogLoading ? 'Searching...' : 'Search'}
+            </button>
+          </form>
+        </div>
+
+        {catalogMessage && (
+          <div className={catalogMessage.type === 'success' ? 'success-message' : 'error-message'}>
+            {catalogMessage.text}
+          </div>
+        )}
+
+        <div className="catalog-grid">
+          {catalogResults.map((sat) => {
+            const alreadyManaged = satellites.some((managedSat) => managedSat.norad_id === sat.norad_id)
+            return (
+              <div key={sat.norad_id} className="catalog-card">
+                <div className="catalog-card-copy">
+                  <strong>{sat.name}</strong>
+                  <span>NORAD {sat.norad_id}</span>
+                  <span>{sat.type || 'SATELLITE'}</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={alreadyManaged || addingSatelliteId === sat.norad_id}
+                  onClick={() => handleAddSatellite(sat)}
+                >
+                  {alreadyManaged ? 'Added' : addingSatelliteId === sat.norad_id ? 'Adding...' : 'Add'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <div className="ranking-controls">

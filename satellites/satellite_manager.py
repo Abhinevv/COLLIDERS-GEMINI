@@ -56,7 +56,14 @@ class SatelliteManager:
             ).first()
             
             if existing:
-                logger.info(f"Satellite {norad_id} already tracked")
+                existing.name = name or existing.name
+                existing.type = sat_type or existing.type
+                existing.description = description or existing.description
+                existing.operator = operator or existing.operator
+                existing.active = True
+                existing.last_updated = datetime.now(timezone.utc)
+                session.commit()
+                logger.info(f"Satellite {norad_id} promoted to managed tracking")
                 return existing.to_dict()
             
             # Fetch TLE data

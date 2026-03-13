@@ -12,6 +12,39 @@ export async function getSatellites() {
   return res.json()
 }
 
+export async function getManagedSatellites() {
+  const res = await fetch(`${BASE}/api/satellites/manage`)
+  if (!res.ok) throw new Error(`Get managed satellites failed: ${res.status}`)
+  return res.json()
+}
+
+export async function addManagedSatellite(payload) {
+  const res = await fetch(`${BASE}/api/satellites/manage/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const txt = await res.text()
+    throw new Error(`Add managed satellite failed: ${res.status} ${txt}`)
+  }
+  return res.json()
+}
+
+export async function getCatalogSatellites(query = '', limit = 8) {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (query.trim()) params.set('q', query.trim())
+  const res = await fetch(`${BASE}/api/catalog/satellites?${params.toString()}`)
+  if (!res.ok) throw new Error(`Get catalog satellites failed: ${res.status}`)
+  return res.json()
+}
+
+export async function getDemoRiskScenarios() {
+  const res = await fetch(`${BASE}/api/demo/risk_scenarios`)
+  if (!res.ok) throw new Error(`Get demo risk scenarios failed: ${res.status}`)
+  return res.json()
+}
+
 export async function postAnalyze(payload) {
   const res = await fetch(`${BASE}/api/analyze`, {
     method: 'POST',
@@ -119,6 +152,10 @@ export default {
   BASE,
   getHealth,
   getSatellites,
+  getManagedSatellites,
+  addManagedSatellite,
+  getCatalogSatellites,
+  getDemoRiskScenarios,
   postAnalyze,
   postVisualize,
   postDebrisAnalyze,

@@ -19,6 +19,7 @@ from optimization.avoidance import AvoidanceManeuver
 from visualization.plot_orbits import OrbitVisualizer
 from debris.analyze import analyze_debris_vs_satellite
 from debris.space_track import SpaceTrackAPI
+from catalog_sync import CatalogSyncManager
 import threading
 import uuid
 import time
@@ -29,6 +30,7 @@ DEBRIS_JOBS = {}
 
 # Initialize Space-Track API (will use env variables)
 space_track_api = SpaceTrackAPI()
+catalog_sync_manager = CatalogSyncManager(space_track_api=space_track_api)
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend access
@@ -253,6 +255,60 @@ def _get_local_debris_count():
         return session.query(DebrisObject).count()
     finally:
         session.close()
+
+
+def _ensure_debris_tle_file(norad_id):
+    """Ensure a debris TLE file exists using cache first, then database fallback."""
+    from tle_cache_manager import get_cache_manager
+
+    debris_tle_file = f'data/sat_{norad_id}.txt'
+    if os.path.exists(debris_tle_file):
+        return debris_tle_file, None
+
+    cache = get_cache_manager()
+    cached_tle = cache.get_tle_from_cache(norad_id)
+    if cached_tle:
+        with open(debris_tle_file, 'w') as f:
+            f.write(f"{cached_tle['name']}\n")
+            f.write(f"{cached_tle['tle_line1']}\n")
+            f.write(f"{cached_tle['tle_line2']}\n")
+        return debris_tle_file, None
+
+    local_obj = _get_local_debris_by_id(norad_id)
+    if local_obj and local_obj.get('tle_line1') and local_obj.get('tle_line2'):
+        with open(debris_tle_file, 'w') as f:
+            f.write(f"{local_obj.get('name') or f'DEBRIS-{norad_id}'}\n")
+            f.write(f"{local_obj['tle_line1']}\n")
+            f.write(f"{local_obj['tle_line2']}\n")
+        return debris_tle_file, None
+
+    return None, (
+        f"No TLE data available for debris {norad_id}. "
+        f"Cache age: {cache.get_cache_age_minutes():.1f} min. "
+        f"Please wait for cache refresh (updates hourly). "
+        f"Space-Track account compliance: No individual queries allowed."
+    )
+
+
+def _ensure_satellite_tle_data(satellite):
+    """Ensure a managed satellite has usable TLE lines, falling back to local files."""
+    if satellite and satellite.tle_line1 and satellite.tle_line2:
+        return satellite.tle_line1, satellite.tle_line2
+
+    tle_file = f"data/sat_{satellite.norad_id}.txt" if satellite else None
+    if tle_file and os.path.exists(tle_file):
+        with open(tle_file, 'r') as handle:
+            parsed_name, tle_line1, tle_line2 = _parse_tle_file_lines(
+                handle.readlines(),
+                satellite.name or f"SAT-{satellite.norad_id}"
+            )
+        satellite.name = satellite.name or parsed_name
+        satellite.tle_line1 = tle_line1
+        satellite.tle_line2 = tle_line2
+        satellite.tle_epoch = satellite.tle_epoch or datetime.now(timezone.utc)
+        return tle_line1, tle_line2
+
+    return None, None
 
 
 @app.route('/health', methods=['GET'])
@@ -984,33 +1040,11 @@ def _run_debris_job(job_id, params):
         visualize = bool(params.get('visualize', False))
 
         # prepare epochs and vectors
-        # For debris, we need to use TLE propagation with CACHED data
-        # NEVER query Space-Track directly - use cache only
-        from tle_cache_manager import get_cache_manager
-        
-        cache = get_cache_manager()
-        debris_tle_file = f'data/sat_{debris}.txt'
-        
-        # Try to get from cache first
-        if not os.path.exists(debris_tle_file):
-            cached_tle = cache.get_tle_from_cache(debris)
-            
-            if cached_tle:
-                # Save cached TLE to file
-                with open(debris_tle_file, 'w') as f:
-                    f.write(f"{cached_tle['name']}\n")
-                    f.write(f"{cached_tle['tle_line1']}\n")
-                    f.write(f"{cached_tle['tle_line2']}\n")
-            else:
-                # No cached data available
-                DEBRIS_JOBS[job_id]['status'] = 'failed'
-                DEBRIS_JOBS[job_id]['error'] = (
-                    f"No TLE data available for debris {debris}. "
-                    f"Cache age: {cache.get_cache_age_minutes():.1f} min. "
-                    f"Please wait for cache refresh (updates hourly). "
-                    f"Space-Track account compliance: No individual queries allowed."
-                )
-                return
+        debris_tle_file, tle_error = _ensure_debris_tle_file(debris)
+        if tle_error:
+            DEBRIS_JOBS[job_id]['status'] = 'failed'
+            DEBRIS_JOBS[job_id]['error'] = tle_error
+            return
         
         # Propagate debris trajectory using TLE
         try:
@@ -1213,6 +1247,21 @@ def tle_cache_status():
     cache = get_cache_manager()
     stats = cache.get_cache_stats()
     return jsonify(stats), 200
+
+
+@app.route('/api/catalog/sync/status', methods=['GET'])
+def catalog_sync_status():
+    """Get live catalog synchronization status."""
+    return jsonify(catalog_sync_manager.get_status()), 200
+
+
+@app.route('/api/catalog/sync', methods=['POST'])
+def trigger_catalog_sync():
+    """Run a live catalog synchronization immediately."""
+    force = request.args.get('force', 'false').lower() == 'true'
+    result = catalog_sync_manager.trigger_sync(force=force)
+    status_code = 200 if result.get('status') in {'success', 'busy', 'disabled'} else 500
+    return jsonify(result), status_code
 
 
 @app.route('/api/tle_cache/refresh', methods=['POST'])
@@ -1454,15 +1503,23 @@ def refresh_space_debris():
     """Refresh local debris availability for the frontend."""
     try:
         before_count = _get_local_debris_count()
-        bootstrap_default_debris()
+        sync_result = catalog_sync_manager.trigger_sync(force=True)
+        if sync_result.get('status') not in {'success', 'busy'}:
+            bootstrap_default_debris()
+            sync_result = {
+                'status': 'success',
+                'message': 'Debris catalog refreshed with local fallback data',
+                'source': 'local-bootstrap',
+            }
         after_count = _get_local_debris_count()
 
         return jsonify({
-            'status': 'success',
-            'message': 'Debris catalog refreshed',
-            'source': 'local-bootstrap',
+            'status': sync_result.get('status', 'success'),
+            'message': sync_result.get('message', 'Debris catalog refreshed'),
+            'source': sync_result.get('debris', {}).get('source', sync_result.get('source', 'local-bootstrap')),
             'count_before': before_count,
-            'count_after': after_count
+            'count_after': after_count,
+            'sync': sync_result,
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1495,15 +1552,23 @@ def get_relevant_debris_for_satellite(satellite_id):
             # Get the satellite
             satellite = session.query(Satellite).filter_by(norad_id=satellite_id).first()
             
-            if not satellite or not satellite.tle_line1 or not satellite.tle_line2:
+            if not satellite:
                 return jsonify({
                     'status': 'error',
                     'message': 'Satellite not found or missing TLE data'
                 }), 404
+
+            sat_tle_line1, sat_tle_line2 = _ensure_satellite_tle_data(satellite)
+            if not sat_tle_line1 or not sat_tle_line2:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Satellite not found or missing TLE data'
+                }), 404
+            session.commit()
             
             # Parse satellite orbital parameters
             try:
-                sat_rec = Satrec.twoline2rv(satellite.tle_line1, satellite.tle_line2)
+                sat_rec = Satrec.twoline2rv(sat_tle_line1, sat_tle_line2)
                 sat_alt = (sat_rec.a * 6378.137) - 6378.137  # km
                 sat_inc = sat_rec.inclo * 57.2958  # degrees
             except Exception as e:
@@ -1520,6 +1585,7 @@ def get_relevant_debris_for_satellite(satellite_id):
             
             # Filter by orbital similarity
             relevant_debris = []
+            fallback_candidates = []
             for debris in all_debris:
                 try:
                     debris_rec = Satrec.twoline2rv(debris.tle_line1, debris.tle_line2)
@@ -1544,11 +1610,55 @@ def get_relevant_debris_for_satellite(satellite_id):
                             'inclination_diff_deg': float(inc_diff),
                             'threat_score': 100 - (alt_diff / alt_threshold * 50) - (inc_diff / inc_threshold * 50)
                         })
+                    else:
+                        fallback_candidates.append({
+                            'norad_id': debris.norad_id,
+                            'name': debris.name or f'Debris {debris.norad_id}',
+                            'type': debris.type,
+                            'rcs_size': debris.rcs_size,
+                            'country': debris.country,
+                            'apogee_km': debris.apogee_km,
+                            'perigee_km': debris.perigee_km,
+                            'inclination_deg': debris.inclination_deg,
+                            'altitude_diff_km': float(alt_diff),
+                            'inclination_diff_deg': float(inc_diff),
+                            'threat_score': max(0.0, 100 - (alt_diff / max(alt_threshold, 1) * 35) - (inc_diff / max(inc_threshold, 1) * 35)),
+                            'fallback_match': True,
+                        })
                 except:
                     continue
             
             # Sort by threat score (closest orbits first)
             relevant_debris.sort(key=lambda x: x['threat_score'], reverse=True)
+            used_fallback = False
+
+            if not relevant_debris and fallback_candidates:
+                fallback_candidates.sort(
+                    key=lambda x: (x['altitude_diff_km'] + (x['inclination_diff_deg'] * 10))
+                )
+
+                # Keep fallback honest: adapt the number of returned objects to
+                # how close the nearest candidates really are, instead of using
+                # one flat count for every satellite.
+                best_candidate = fallback_candidates[0]
+                best_metric = best_candidate['altitude_diff_km'] + (best_candidate['inclination_diff_deg'] * 10)
+
+                adaptive_cutoff = max(best_metric * 1.6, best_metric + 120)
+                nearby_fallback = [
+                    item for item in fallback_candidates
+                    if (item['altitude_diff_km'] + (item['inclination_diff_deg'] * 10)) <= adaptive_cutoff
+                ]
+
+                min_fallback = min(limit, 5)
+                dynamic_target = int(round(18 - (best_metric / 150.0)))
+                dynamic_target = max(3, min(limit, dynamic_target))
+
+                if len(nearby_fallback) < min_fallback:
+                    relevant_debris = fallback_candidates[:min_fallback]
+                else:
+                    relevant_debris = nearby_fallback[:dynamic_target]
+
+                used_fallback = True
             
             # Limit results
             relevant_debris = relevant_debris[:limit]
@@ -1569,6 +1679,7 @@ def get_relevant_debris_for_satellite(satellite_id):
                     'altitude_threshold_km': alt_threshold,
                     'inclination_threshold_deg': inc_threshold
                 },
+                'matching_mode': 'nearest_fallback' if used_fallback else 'strict_orbital_match',
                 'high_risk_debris': relevant_debris
             }), 200
             
@@ -1954,13 +2065,18 @@ satellite_manager = None
 
 try:
     from history.history_service import HistoryService
-    from satellites.satellite_manager import SatelliteManager
+    from satellites.satellite_manager import SatelliteManager, _parse_tle_file_lines
 
     history_service = HistoryService()
     satellite_manager = SatelliteManager()
 except Exception as _e:
     # Log the failure but don't crash; routes will return an error if accessed
     print(f"[WARN] database-backed services unavailable: {_e}")
+
+
+def should_start_background_workers():
+    """Avoid duplicate background sync threads when Flask debug reloader is active."""
+    return not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
 
 
 @app.route('/api/history/satellite/<norad_id>', methods=['GET'])
@@ -2246,6 +2362,127 @@ def export_satellites():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/catalog/satellites', methods=['GET'])
+def list_catalog_satellites():
+    """Browse the synced live satellite catalog without affecting managed satellites."""
+    try:
+        from database.db_manager import get_db_manager
+        from database.models import Satellite
+
+        limit = int(request.args.get('limit', 100))
+        query_text = request.args.get('q', '').strip()
+
+        session = get_db_manager().get_session()
+        try:
+            query = session.query(Satellite)
+            if query_text:
+                like_term = f'%{query_text}%'
+                query = query.filter(
+                    (Satellite.norad_id.ilike(like_term)) |
+                    (Satellite.name.ilike(like_term)) |
+                    (Satellite.operator.ilike(like_term))
+                )
+
+            satellites = query.order_by(Satellite.last_updated.desc()).limit(limit).all()
+            return jsonify({
+                'status': 'success',
+                'count': len(satellites),
+                'satellites': [sat.to_dict() for sat in satellites],
+                'sync': catalog_sync_manager.get_status(),
+            }), 200
+        finally:
+            session.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/catalog/debris', methods=['GET'])
+def list_catalog_debris():
+    """Browse the synced live debris catalog."""
+    try:
+        from database.db_manager import get_db_manager
+        from database.models import DebrisObject
+
+        limit = int(request.args.get('limit', 100))
+        query_text = request.args.get('q', '').strip()
+
+        session = get_db_manager().get_session()
+        try:
+            query = session.query(DebrisObject)
+            if query_text:
+                like_term = f'%{query_text}%'
+                query = query.filter(
+                    (DebrisObject.norad_id.ilike(like_term)) |
+                    (DebrisObject.name.ilike(like_term)) |
+                    (DebrisObject.type.ilike(like_term))
+                )
+
+            debris = query.order_by(DebrisObject.last_updated.desc()).limit(limit).all()
+            return jsonify({
+                'status': 'success',
+                'count': len(debris),
+                'debris': [item.to_dict() for item in debris],
+                'sync': catalog_sync_manager.get_status(),
+            }), 200
+        finally:
+            session.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/demo/risk_scenarios', methods=['GET'])
+def demo_risk_scenarios():
+    """Return curated demo-only risk scenarios for presentations."""
+    scenarios = [
+        {
+            'scenario_id': 'demo-1',
+            'satellite_name': 'AQUA',
+            'satellite_id': '40069',
+            'debris_name': 'DEMO-FRAGMENT-ALPHA',
+            'debris_id': 'D-90001',
+            'probability': 4.35e-7,
+            'risk_level': 'LOW',
+            'closest_distance_km': 2.84,
+            'relative_velocity_km_s': 12.4,
+            'time_to_approach_minutes': 41,
+            'summary': 'Small fragment crossing the orbital plane with low but visible risk.',
+        },
+        {
+            'scenario_id': 'demo-2',
+            'satellite_name': 'ISS (ZARYA)',
+            'satellite_id': '25544',
+            'debris_name': 'DEMO-PANEL-BETA',
+            'debris_id': 'D-90002',
+            'probability': 0.0042,
+            'risk_level': 'MODERATE',
+            'closest_distance_km': 0.91,
+            'relative_velocity_km_s': 13.1,
+            'time_to_approach_minutes': 18,
+            'summary': 'Representative conjunction event useful for explaining alert thresholds.',
+        },
+        {
+            'scenario_id': 'demo-3',
+            'satellite_name': 'HST',
+            'satellite_id': '43013',
+            'debris_name': 'DEMO-BUS-SECTION',
+            'debris_id': 'D-90003',
+            'probability': 0.024,
+            'risk_level': 'HIGH',
+            'closest_distance_km': 0.22,
+            'relative_velocity_km_s': 14.8,
+            'time_to_approach_minutes': 9,
+            'summary': 'High-visibility demo event showing when avoidance planning becomes urgent.',
+        }
+    ]
+
+    return jsonify({
+        'status': 'success',
+        'demo_only': True,
+        'count': len(scenarios),
+        'scenarios': scenarios,
+    }), 200
 
 
 # Modify the debris_job completion to save to history
@@ -2670,6 +2907,8 @@ if __name__ == '__main__':
     os.makedirs('output', exist_ok=True)
     bootstrap_default_satellites()
     bootstrap_default_debris()
+    if should_start_background_workers():
+        catalog_sync_manager.start_background_sync()
     
     print("=" * 70)
     print("ASTROCLEANAI API SERVER - PHASE 1 + 2 COMPLETE")
@@ -2680,6 +2919,8 @@ if __name__ == '__main__':
     print("  GET  /api/satellites            - List satellites")
     print("  POST /api/analyze               - Analyze collision")
     print("  POST /api/debris_job            - Start debris analysis")
+    print("  GET  /api/catalog/sync/status   - Live catalog sync status")
+    print("  POST /api/catalog/sync          - Trigger live catalog sync")
     print("\nPhase 1 - History & Satellites:")
     print("  GET  /api/history/statistics    - Analysis statistics")
     print("  GET  /api/history/satellite/<id> - Satellite history")

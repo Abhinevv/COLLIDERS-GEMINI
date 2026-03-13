@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { startDebrisJob, getDebrisJob } from '../api'
+import { startDebrisJob, getDebrisJob, getDemoRiskScenarios } from '../api'
 
 export default function CollisionAnalysis() {
   const [satellites, setSatellites] = useState([])
@@ -12,6 +12,8 @@ export default function CollisionAnalysis() {
   const [jobStatus, setJobStatus] = useState(null)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [demoScenarios, setDemoScenarios] = useState([])
+  const [demoMode, setDemoMode] = useState(false)
 
   // Format probability with scientific notation for very small values
   function formatProbability(prob) {
@@ -27,6 +29,7 @@ export default function CollisionAnalysis() {
 
   useEffect(() => {
     loadSatellites()
+    loadDemoScenarios()
   }, [])
 
   useEffect(() => {
@@ -73,6 +76,37 @@ export default function CollisionAnalysis() {
     }
   }
 
+  async function loadDemoScenarios() {
+    try {
+      const data = await getDemoRiskScenarios()
+      setDemoScenarios(data.scenarios || [])
+    } catch (err) {
+      console.error('Error loading demo scenarios:', err)
+    }
+  }
+
+  function loadDemoScenario(scenario) {
+    setDemoMode(true)
+    setSelectedSatellite(scenario.satellite_id)
+    setDebrisId(scenario.debris_id)
+    setDuration(Math.max(15, scenario.time_to_approach_minutes * 2))
+    setSamples(10000)
+    setJobId(null)
+    setJobStatus({
+      status: 'completed',
+      visualization_url: null
+    })
+    setResult({
+      probability: scenario.probability,
+      min_distance_km: scenario.closest_distance_km,
+      relative_velocity_km_s: scenario.relative_velocity_km_s,
+      total_samples: 10000,
+      demo_only: true,
+      summary: scenario.summary
+    })
+    setError(null)
+  }
+
   async function handleAnalyze(e) {
     e.preventDefault()
     
@@ -85,6 +119,7 @@ export default function CollisionAnalysis() {
     setError(null)
     setResult(null)
     setJobStatus(null)
+    setDemoMode(false)
 
     try {
       const payload = {
@@ -123,6 +158,25 @@ export default function CollisionAnalysis() {
         <h2>Collision Analysis</h2>
         <p>Analyze collision probability between satellites and space debris</p>
       </div>
+
+      {demoScenarios.length > 0 && (
+        <div className="demo-banner collision-demo-banner glass-effect">
+          <strong>Demo Presets</strong>
+          <span>Use these curated scenarios to present how this screen looks with visible non-zero risk values.</span>
+          <div className="demo-preset-row">
+            {demoScenarios.map((scenario) => (
+              <button
+                key={scenario.scenario_id}
+                type="button"
+                className="demo-preset-btn"
+                onClick={() => loadDemoScenario(scenario)}
+              >
+                {scenario.satellite_name} vs {scenario.debris_name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="analysis-form-container">
         <form onSubmit={handleAnalyze} className="analysis-form">
@@ -222,6 +276,11 @@ export default function CollisionAnalysis() {
         {result && (
           <div className="results-container">
             <h3>Analysis Results</h3>
+            {demoMode && (
+              <div className="demo-note">
+                Demo scenario loaded for presentation. Real collision analysis remains unchanged.
+              </div>
+            )}
             
             <div className="result-card">
               <div className="result-header">
@@ -248,7 +307,7 @@ export default function CollisionAnalysis() {
               <div className="result-details">
                 <div className="detail-item">
                   <span className="detail-label">Samples Analyzed:</span>
-                  <span className="detail-value">{samples.toLocaleString()}</span>
+                  <span className="detail-value">{(result.total_samples || samples).toLocaleString()}</span>
                 </div>
                 <div className="detail-item">
                   <span className="detail-label">Duration:</span>
@@ -264,6 +323,12 @@ export default function CollisionAnalysis() {
                   <span className="detail-label">Debris ID:</span>
                   <span className="detail-value">{debrisId}</span>
                 </div>
+                {result.min_distance_km && (
+                  <div className="detail-item">
+                    <span className="detail-label">Closest Distance:</span>
+                    <span className="detail-value">{result.min_distance_km} km</span>
+                  </div>
+                )}
               </div>
 
               {jobStatus?.visualization_url && (
@@ -282,6 +347,9 @@ export default function CollisionAnalysis() {
 
             <div className="interpretation">
               <h4>Interpretation</h4>
+              {demoMode && result.summary && (
+                <p className="form-hint">{result.summary}</p>
+              )}
               {result.probability === 0 ? (
                 <p className="safe-message">
                   ✅ No collision detected. The objects maintain safe separation throughout the analysis period.
