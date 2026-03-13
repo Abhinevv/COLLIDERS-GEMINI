@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { searchSpaceDebris, getHighRiskDebris, getRecentDebris, getDebrisDetails } from '../api'
+import { addStaggeredAnimations } from '../utils/useIntersectionObserver'
 
 export default function DebrisTracker() {
   const [activeView, setActiveView] = useState('search')
@@ -18,6 +19,14 @@ export default function DebrisTracker() {
       loadRecentDebris()
     }
   }, [activeView])
+
+  useEffect(() => {
+    // Add entrance animations to debris items
+    if (!loading) {
+      const cleanup = addStaggeredAnimations('.debris-item', 100)
+      return () => cleanup?.()
+    }
+  }, [loading, searchResults, highRiskDebris, recentDebris])
 
   async function loadHighRiskDebris() {
     setLoading(true)

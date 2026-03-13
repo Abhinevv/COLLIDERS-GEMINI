@@ -19,7 +19,7 @@ export default function App() {
       <Toast />
       <header className="app-header">
         <div className="header-content">
-          <h1>🛰️ AstroCleanAI</h1>
+          <h1>🛰️ COLLIDERS</h1>
           <p>Space Debris Tracking & Collision Avoidance System</p>
         </div>
         <nav className="nav-tabs">
@@ -65,12 +65,6 @@ export default function App() {
           >
             🔔 Alerts
           </button>
-          <button 
-            className={`nav-tab ${activeTab === 'maneuver' ? 'active' : ''}`}
-            onClick={() => setActiveTab('maneuver')}
-          >
-            🚀 Maneuvers
-          </button>
         </nav>
       </header>
 
@@ -104,7 +98,7 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        <p>AstroCleanAI - Making space safer through intelligent collision avoidance</p>
+        <p>COLLIDERS - Making space safer through intelligent collision avoidance</p>
         <p className="footer-links">
           <a href="http://localhost:5000/api/docs" target="_blank" rel="noopener noreferrer">API Docs</a>
           {' • '}

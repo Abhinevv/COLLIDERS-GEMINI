@@ -39,16 +39,6 @@ export default function RiskRanking() {
     loadData()
   }, [])
 
-  // Auto-start both analyses after data loads
-  useEffect(() => {
-    if (satellites.length > 0 && debrisList.length > 0 && !fastAnalysis.complete && !smartAnalysis.complete) {
-      console.log('Auto-starting parallel analyses...')
-      // Start both analyses simultaneously
-      analyzeRisks('fast')
-      analyzeRisks('smart')
-    }
-  }, [satellites, debrisList])
-
   async function loadData() {
     setLoading(true)
     setError(null)
@@ -337,7 +327,10 @@ export default function RiskRanking() {
         <div className="analysis-tabs">
           <button 
             className={`tab-btn ${activeTab === 'fast' ? 'active' : ''}`}
-            onClick={() => setActiveTab('fast')}
+            onClick={() => {
+              setActiveTab('fast')
+              analyzeRisks('fast')
+            }}
           >
             <span className="tab-icon">⚡</span>
             <span className="tab-label">Fast Mode (Top 50, 25km)</span>
@@ -351,7 +344,10 @@ export default function RiskRanking() {
           
           <button 
             className={`tab-btn ${activeTab === 'smart' ? 'active' : ''}`}
-            onClick={() => setActiveTab('smart')}
+            onClick={() => {
+              setActiveTab('smart')
+              analyzeRisks('smart')
+            }}
           >
             <span className="tab-icon">🎯</span>
             <span className="tab-label">Smart Analysis (50km)</span>

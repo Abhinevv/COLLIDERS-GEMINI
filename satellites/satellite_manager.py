@@ -14,6 +14,19 @@ import io
 logger = logging.getLogger(__name__)
 
 
+def _parse_tle_file_lines(lines, fallback_name):
+    """Support both 2-line and 3-line TLE files."""
+    cleaned = [line.strip() for line in lines if line.strip()]
+
+    if len(cleaned) >= 3:
+        return cleaned[0], cleaned[1], cleaned[2]
+
+    if len(cleaned) >= 2:
+        return fallback_name, cleaned[0], cleaned[1]
+
+    raise Exception("Invalid TLE format")
+
+
 class SatelliteManager:
     """Service for managing tracked satellites"""
     
@@ -55,13 +68,11 @@ class SatelliteManager:
             
             # Read TLE
             with open(tle_file, 'r') as f:
-                lines = f.readlines()
-                if len(lines) >= 3:
-                    sat_name = lines[0].strip() if not name else name
-                    tle_line1 = lines[1].strip()
-                    tle_line2 = lines[2].strip()
-                else:
-                    raise Exception("Invalid TLE format")
+                parsed_name, tle_line1, tle_line2 = _parse_tle_file_lines(
+                    f.readlines(),
+                    name or f"SAT-{norad_id}"
+                )
+                sat_name = name or parsed_name
             
             # Create satellite record
             satellite = Satellite(
@@ -150,11 +161,11 @@ class SatelliteManager:
             
             # Read TLE
             with open(tle_file, 'r') as f:
-                lines = f.readlines()
-                if len(lines) >= 3:
-                    satellite.tle_line1 = lines[1].strip()
-                    satellite.tle_line2 = lines[2].strip()
-                    satellite.tle_epoch = datetime.now(timezone.utc)
+                _, satellite.tle_line1, satellite.tle_line2 = _parse_tle_file_lines(
+                    f.readlines(),
+                    satellite.name or f"SAT-{norad_id}"
+                )
+                satellite.tle_epoch = datetime.now(timezone.utc)
             
             session.commit()
             

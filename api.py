@@ -36,6 +36,193 @@ CORS(app)  # Enable CORS for frontend access
 # Global cache for propagators
 _propagator_cache = {}
 
+DEFAULT_MANAGED_SATELLITES = [
+    {'norad_id': '25544', 'name': 'ISS (ZARYA)', 'type': 'Space Station', 'description': 'International Space Station'},
+    {'norad_id': '43013', 'name': 'HST', 'type': 'Space Telescope', 'description': 'Hubble Space Telescope'},
+    {'norad_id': '20580', 'name': 'NOAA-19', 'type': 'Weather Satellite', 'description': 'NOAA-19 weather satellite'},
+    {'norad_id': '33591', 'name': 'TERRA', 'type': 'Earth Observation', 'description': 'NASA Earth observing satellite'},
+    {'norad_id': '38771', 'name': 'METOP-B', 'type': 'Weather Satellite', 'description': 'EUMETSAT polar weather satellite'},
+    {'norad_id': '39084', 'name': 'LANDSAT-8', 'type': 'Earth Observation', 'description': 'USGS Earth observation satellite'},
+    {'norad_id': '40069', 'name': 'AQUA', 'type': 'Earth Observation', 'description': 'NASA Earth science satellite'},
+    {'norad_id': '41866', 'name': 'GOES-16', 'type': 'Weather Satellite', 'description': 'NOAA geostationary weather satellite'},
+]
+DEFAULT_DEBRIS_BOOTSTRAP_LIMIT = 100
+
+
+def _format_debris_record(record):
+    """Normalize DB/cache/Space-Track debris payloads for the API."""
+    if hasattr(record, 'norad_id'):
+        return {
+            'norad_id': record.norad_id,
+            'name': record.name,
+            'type': record.type,
+            'country': record.country,
+            'launch_date': record.launch_date.isoformat() if record.launch_date else None,
+            'decay_date': record.decay_date.isoformat() if getattr(record, 'decay_date', None) else None,
+            'epoch': record.tle_epoch.isoformat() if getattr(record, 'tle_epoch', None) else None,
+            'period_minutes': record.period_minutes,
+            'inclination_deg': record.inclination_deg,
+            'eccentricity': None,
+            'mean_motion': None,
+            'apogee_km': record.apogee_km,
+            'perigee_km': record.perigee_km,
+            'rcs_size': record.rcs_size,
+            'tle_line1': getattr(record, 'tle_line1', None),
+            'tle_line2': getattr(record, 'tle_line2', None),
+        }
+
+    return {
+        'norad_id': record.get('NORAD_CAT_ID'),
+        'name': record.get('OBJECT_NAME'),
+        'type': record.get('OBJECT_TYPE'),
+        'country': record.get('COUNTRY') or record.get('COUNTRY_CODE'),
+        'launch_date': record.get('LAUNCH_DATE'),
+        'decay_date': record.get('DECAY_DATE'),
+        'epoch': record.get('EPOCH'),
+        'period_minutes': record.get('PERIOD'),
+        'inclination_deg': record.get('INCLINATION'),
+        'eccentricity': record.get('ECCENTRICITY'),
+        'mean_motion': record.get('MEAN_MOTION'),
+        'apogee_km': record.get('APOGEE'),
+        'perigee_km': record.get('PERIGEE'),
+        'rcs_size': record.get('RCS_SIZE'),
+        'tle_line1': record.get('TLE_LINE1'),
+        'tle_line2': record.get('TLE_LINE2'),
+    }
+
+
+def _search_local_debris(query, limit):
+    from database.db_manager import get_db_manager
+    from database.models import DebrisObject
+
+    session = get_db_manager().get_session()
+    try:
+        search_term = (query or 'debris').strip()
+        q = session.query(DebrisObject)
+
+        if search_term:
+            like_term = f'%{search_term}%'
+            q = q.filter(
+                (DebrisObject.norad_id.ilike(like_term)) |
+                (DebrisObject.name.ilike(like_term)) |
+                (DebrisObject.type.ilike(like_term))
+            )
+
+        debris_list = q.order_by(DebrisObject.norad_id).limit(limit).all()
+        return [_format_debris_record(obj) for obj in debris_list]
+    finally:
+        session.close()
+
+
+def _get_local_debris_by_id(norad_id):
+    from database.db_manager import get_db_manager
+    from database.models import DebrisObject
+
+    session = get_db_manager().get_session()
+    try:
+        debris = session.query(DebrisObject).filter_by(norad_id=str(norad_id)).first()
+        return _format_debris_record(debris) if debris else None
+    finally:
+        session.close()
+
+
+def _get_cached_debris_by_id(norad_id):
+    from tle_cache_manager import get_cache_manager
+
+    cached = get_cache_manager().get_tle_from_cache(norad_id)
+    if not cached:
+        return None
+
+    return {
+        'norad_id': str(norad_id),
+        'name': cached.get('name'),
+        'type': 'DEBRIS',
+        'country': None,
+        'launch_date': None,
+        'decay_date': None,
+        'epoch': None,
+        'period_minutes': None,
+        'inclination_deg': None,
+        'eccentricity': None,
+        'mean_motion': None,
+        'apogee_km': None,
+        'perigee_km': None,
+        'rcs_size': None,
+        'tle_line1': cached.get('tle_line1'),
+        'tle_line2': cached.get('tle_line2'),
+    }
+
+
+def bootstrap_default_satellites():
+    """Ensure a useful starter set of tracked satellites exists on startup."""
+    if satellite_manager is None:
+        return
+
+    added = 0
+    skipped = 0
+
+    for sat in DEFAULT_MANAGED_SATELLITES:
+        try:
+            if satellite_manager.get_satellite(sat['norad_id']):
+                skipped += 1
+                continue
+
+            satellite_manager.add_satellite(
+                norad_id=sat['norad_id'],
+                name=sat['name'],
+                sat_type=sat['type'],
+                description=sat['description']
+            )
+            added += 1
+        except Exception as exc:
+            print(f"[WARN] failed to auto-add satellite {sat['norad_id']}: {exc}")
+
+    print(f"[INFO] default satellite bootstrap complete: added={added}, existing={skipped}")
+
+
+def bootstrap_default_debris(limit=DEFAULT_DEBRIS_BOOTSTRAP_LIMIT):
+    """Populate local debris records from cache so ranking has useful data."""
+    try:
+        from database.db_manager import get_db_manager
+        from database.models import DebrisObject
+        from tle_cache_manager import get_cache_manager
+
+        cache = get_cache_manager()._load_json_cache()
+        if not cache or 'objects' not in cache:
+            print("[INFO] debris bootstrap skipped: no local cache found")
+            return
+
+        session = get_db_manager().get_session()
+        try:
+            existing_count = session.query(DebrisObject).count()
+            if existing_count >= limit:
+                print(f"[INFO] debris bootstrap skipped: existing={existing_count}")
+                return
+
+            added = 0
+            for norad_id, obj in list(cache['objects'].items())[:limit]:
+                if session.query(DebrisObject).filter_by(norad_id=str(norad_id)).first():
+                    continue
+
+                session.add(DebrisObject(
+                    norad_id=str(norad_id),
+                    name=obj.get('name', f'DEBRIS-{norad_id}'),
+                    type='DEBRIS',
+                    rcs_size='MEDIUM',
+                    country='CACHE',
+                    tle_line1=obj.get('tle_line1'),
+                    tle_line2=obj.get('tle_line2')
+                ))
+                added += 1
+
+            session.commit()
+            final_count = session.query(DebrisObject).count()
+            print(f"[INFO] default debris bootstrap complete: added={added}, total={final_count}")
+        finally:
+            session.close()
+    except Exception as exc:
+        print(f"[WARN] default debris bootstrap failed: {exc}")
+
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -1139,37 +1326,29 @@ def search_space_debris():
     try:
         object_type = request.args.get('type', 'debris')
         limit = int(request.args.get('limit', 50))
-        
-        debris_list = space_track_api.search_debris(object_type=object_type, limit=limit)
-        
+
+        try:
+            debris_list = space_track_api.search_debris(object_type=object_type, limit=limit)
+        except ValueError:
+            debris_list = []
+
         if debris_list:
-            # Format response
-            results = []
-            for obj in debris_list:
-                results.append({
-                    'norad_id': obj.get('NORAD_CAT_ID'),
-                    'name': obj.get('OBJECT_NAME'),
-                    'type': obj.get('OBJECT_TYPE'),
-                    'country': obj.get('COUNTRY_CODE'),
-                    'launch_date': obj.get('LAUNCH_DATE'),
-                    'epoch': obj.get('EPOCH'),
-                    'period_minutes': obj.get('PERIOD'),
-                    'inclination_deg': obj.get('INCLINATION'),
-                    'eccentricity': obj.get('ECCENTRICITY'),
-                    'mean_motion': obj.get('MEAN_MOTION')
-                })
-            
+            results = [_format_debris_record(obj) for obj in debris_list]
             return jsonify({
                 'status': 'success',
                 'count': len(results),
-                'debris': results
+                'debris': results,
+                'source': 'space-track'
             }), 200
-        else:
-            return jsonify({
-                'status': 'error',
-                'message': 'No debris found or authentication failed'
-            }), 404
-            
+
+        local_results = _search_local_debris(object_type, limit)
+        return jsonify({
+            'status': 'success',
+            'count': len(local_results),
+            'debris': local_results,
+            'source': 'local-database'
+        }), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1576,36 +1755,31 @@ def get_debris_details(norad_id):
         norad_id: NORAD catalog number
     """
     try:
-        obj = space_track_api.get_debris_by_id(norad_id)
-        
+        try:
+            obj = space_track_api.get_debris_by_id(norad_id)
+        except ValueError:
+            obj = None
+
         if obj:
             return jsonify({
                 'status': 'success',
-                'debris': {
-                    'norad_id': obj.get('NORAD_CAT_ID'),
-                    'name': obj.get('OBJECT_NAME'),
-                    'type': obj.get('OBJECT_TYPE'),
-                    'country': obj.get('COUNTRY'),
-                    'launch_date': obj.get('LAUNCH_DATE'),
-                    'decay_date': obj.get('DECAY_DATE'),
-                    'apogee_km': obj.get('APOGEE'),
-                    'perigee_km': obj.get('PERIGEE'),
-                    'period_minutes': obj.get('PERIOD'),
-                    'inclination_deg': obj.get('INCLINATION'),
-                    'eccentricity': obj.get('ECCENTRICITY'),
-                    'mean_motion': obj.get('MEAN_MOTION'),
-                    'rcs_size': obj.get('RCS_SIZE'),
-                    'tle_line1': obj.get('TLE_LINE1'),
-                    'tle_line2': obj.get('TLE_LINE2'),
-                    'epoch': obj.get('EPOCH')
-                }
+                'debris': _format_debris_record(obj),
+                'source': 'space-track'
             }), 200
-        else:
+
+        local_obj = _get_local_debris_by_id(norad_id) or _get_cached_debris_by_id(norad_id)
+        if local_obj:
             return jsonify({
-                'status': 'error',
-                'message': f'Debris {norad_id} not found'
-            }), 404
-            
+                'status': 'success',
+                'debris': local_obj,
+                'source': 'local-fallback'
+            }), 200
+
+        return jsonify({
+            'status': 'error',
+            'message': f'Debris {norad_id} not found'
+        }), 404
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1619,8 +1793,16 @@ def get_debris_tle(norad_id):
         norad_id: NORAD catalog number
     """
     try:
-        tle_data = space_track_api.get_tle_data(norad_id)
-        
+        try:
+            tle_data = space_track_api.get_tle_data(norad_id)
+        except ValueError:
+            tle_data = None
+
+        if not tle_data:
+            local_obj = _get_local_debris_by_id(norad_id) or _get_cached_debris_by_id(norad_id)
+            if local_obj and local_obj.get('tle_line1') and local_obj.get('tle_line2'):
+                tle_data = (local_obj['tle_line1'], local_obj['tle_line2'])
+
         if tle_data:
             line1, line2 = tle_data
             return jsonify({
@@ -1631,12 +1813,12 @@ def get_debris_tle(norad_id):
                     'line2': line2
                 }
             }), 200
-        else:
-            return jsonify({
-                'status': 'error',
-                'message': f'TLE data for {norad_id} not found'
-            }), 404
-            
+
+        return jsonify({
+            'status': 'error',
+            'message': f'TLE data for {norad_id} not found'
+        }), 404
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1713,17 +1895,30 @@ def internal_error(error):
 # PHASE 1: HISTORY TRACKING & SATELLITE MANAGEMENT
 # ============================================================================
 
-from history.history_service import HistoryService
-from satellites.satellite_manager import SatelliteManager
+# Some optional modules rely on SQLAlchemy which may trigger import-time
+# errors in certain Python environments (e.g., 3.13).  Import lazily and
+# guard against failures so the API can still start without a working DB.
 
-# Initialize services
-history_service = HistoryService()
-satellite_manager = SatelliteManager()
+history_service = None
+satellite_manager = None
+
+try:
+    from history.history_service import HistoryService
+    from satellites.satellite_manager import SatelliteManager
+
+    history_service = HistoryService()
+    satellite_manager = SatelliteManager()
+except Exception as _e:
+    # Log the failure but don't crash; routes will return an error if accessed
+    print(f"[WARN] database-backed services unavailable: {_e}")
 
 
 @app.route('/api/history/satellite/<norad_id>', methods=['GET'])
 def get_satellite_history(norad_id):
     """Get analysis history for a satellite"""
+    if history_service is None:
+        return jsonify({'error': 'History service unavailable'}), 503
+
     try:
         days = int(request.args.get('days', 30))
         limit = int(request.args.get('limit', 100))
@@ -1744,6 +1939,9 @@ def get_satellite_history(norad_id):
 @app.route('/api/history/debris/<debris_id>', methods=['GET'])
 def get_debris_history(debris_id):
     """Get analysis history for a debris object"""
+    if history_service is None:
+        return jsonify({'error': 'History service unavailable'}), 503
+
     try:
         days = int(request.args.get('days', 30))
         limit = int(request.args.get('limit', 100))
@@ -1764,6 +1962,9 @@ def get_debris_history(debris_id):
 @app.route('/api/history/trends', methods=['GET'])
 def get_trend_data():
     """Get probability trends for a satellite-debris pair"""
+    if history_service is None:
+        return jsonify({'error': 'History service unavailable'}), 503
+
     try:
         satellite_id = request.args.get('satellite_id')
         debris_id = request.args.get('debris_id')
@@ -1788,6 +1989,9 @@ def get_trend_data():
 @app.route('/api/history/statistics', methods=['GET'])
 def get_history_statistics():
     """Get overall statistics"""
+    if history_service is None:
+        return jsonify({'error': 'History service unavailable'}), 503
+
     try:
         days = int(request.args.get('days', 30))
         stats = history_service.get_statistics(days)
@@ -1804,6 +2008,9 @@ def get_history_statistics():
 @app.route('/api/history/export', methods=['GET'])
 def export_history():
     """Export history to CSV"""
+    if history_service is None:
+        return jsonify({'error': 'History service unavailable'}), 503
+
     try:
         satellite_id = request.args.get('satellite_id')
         debris_id = request.args.get('debris_id')
@@ -1823,6 +2030,9 @@ def export_history():
 @app.route('/api/satellites/manage', methods=['GET'])
 def list_managed_satellites():
     """List all managed satellites"""
+    if satellite_manager is None:
+        return jsonify({'error': 'Satellite manager unavailable'}), 503
+
     try:
         active_only = request.args.get('active_only', 'true').lower() == 'true'
         satellites = satellite_manager.get_all_satellites(active_only)
@@ -1840,6 +2050,9 @@ def list_managed_satellites():
 @app.route('/api/satellites/manage/<norad_id>', methods=['GET'])
 def get_managed_satellite(norad_id):
     """Get a specific managed satellite"""
+    if satellite_manager is None:
+        return jsonify({'error': 'Satellite manager unavailable'}), 503
+
     try:
         satellite = satellite_manager.get_satellite(norad_id)
         
@@ -1858,6 +2071,9 @@ def get_managed_satellite(norad_id):
 @app.route('/api/satellites/manage/add', methods=['POST'])
 def add_managed_satellite():
     """Add a satellite to tracking"""
+    if satellite_manager is None:
+        return jsonify({'error': 'Satellite manager unavailable'}), 503
+
     try:
         data = request.get_json()
         norad_id = data.get('norad_id')
@@ -1886,6 +2102,9 @@ def add_managed_satellite():
 @app.route('/api/satellites/manage/<norad_id>', methods=['DELETE'])
 def remove_managed_satellite(norad_id):
     """Remove a satellite from tracking"""
+    if satellite_manager is None:
+        return jsonify({'error': 'Satellite manager unavailable'}), 503
+
     try:
         success = satellite_manager.remove_satellite(norad_id)
         
@@ -1904,6 +2123,9 @@ def remove_managed_satellite(norad_id):
 @app.route('/api/satellites/manage/<norad_id>/update_tle', methods=['POST'])
 def update_satellite_tle(norad_id):
     """Update TLE data for a satellite"""
+    if satellite_manager is None:
+        return jsonify({'error': 'Satellite manager unavailable'}), 503
+
     try:
         satellite = satellite_manager.update_satellite_tle(norad_id)
         
@@ -1920,6 +2142,9 @@ def update_satellite_tle(norad_id):
 @app.route('/api/satellites/manage/import', methods=['POST'])
 def import_satellites():
     """Import satellites from JSON or CSV"""
+    if satellite_manager is None:
+        return jsonify({'error': 'Satellite manager unavailable'}), 503
+
     try:
         data = request.get_json()
         format_type = data.get('format', 'json')
@@ -1948,6 +2173,9 @@ def import_satellites():
 @app.route('/api/satellites/manage/export', methods=['GET'])
 def export_satellites():
     """Export satellites to JSON or CSV"""
+    if satellite_manager is None:
+        return jsonify({'error': 'Satellite manager unavailable'}), 503
+
     try:
         format_type = request.args.get('format', 'json')
         
@@ -1973,6 +2201,10 @@ def export_satellites():
 # Modify the debris_job completion to save to history
 def _save_analysis_to_history(job_id, params, result):
     """Save completed analysis to history"""
+    if history_service is None:
+        # history unavailable; nothing to persist
+        return
+
     try:
         history_service.save_analysis(
             satellite_id=params.get('satellite_norad'),
@@ -1990,11 +2222,17 @@ def _save_analysis_to_history(job_id, params, result):
 # PHASE 2: ALERTS & MANEUVER RECOMMENDATIONS
 # ============================================================================
 
-from alerts.alert_service import AlertService
+# optionally import alert service (may pull in SQLAlchemy)
+alert_service = None
+try:
+    from alerts.alert_service import AlertService
+    alert_service = AlertService()
+except Exception as _e:
+    print(f"[WARN] alert service unavailable: {_e}")
+
 from optimization.maneuver_calculator import ManeuverCalculator
 
-# Initialize services
-alert_service = AlertService()
+# Initialize other services
 maneuver_calculator = ManeuverCalculator()
 
 
@@ -2005,6 +2243,8 @@ maneuver_calculator = ManeuverCalculator()
 @app.route('/api/alerts', methods=['GET'])
 def get_alerts():
     """Get all active alerts with optional filtering"""
+    if alert_service is None:
+        return jsonify({'error': 'Alert service unavailable'}), 503
     try:
         satellite_id = request.args.get('satellite_id')
         min_risk = request.args.get('min_risk_level')
@@ -2024,6 +2264,8 @@ def get_alerts():
 @app.route('/api/alerts/<int:alert_id>', methods=['GET'])
 def get_alert_by_id(alert_id):
     """Get a specific alert"""
+    if alert_service is None:
+        return jsonify({'error': 'Alert service unavailable'}), 503
     try:
         alert = alert_service.get_alert(alert_id)
         
@@ -2042,6 +2284,8 @@ def get_alert_by_id(alert_id):
 @app.route('/api/alerts/<int:alert_id>/dismiss', methods=['PUT'])
 def dismiss_alert_endpoint(alert_id):
     """Dismiss an alert"""
+    if alert_service is None:
+        return jsonify({'error': 'Alert service unavailable'}), 503
     try:
         data = request.get_json() or {}
         success = alert_service.dismiss_alert(alert_id, data.get('notes'))
@@ -2061,6 +2305,8 @@ def dismiss_alert_endpoint(alert_id):
 @app.route('/api/alerts/<int:alert_id>/resolve', methods=['PUT'])
 def resolve_alert_endpoint(alert_id):
     """Mark an alert as resolved"""
+    if alert_service is None:
+        return jsonify({'error': 'Alert service unavailable'}), 503
     try:
         data = request.get_json() or {}
         success = alert_service.resolve_alert(alert_id, data.get('notes'))
@@ -2080,6 +2326,8 @@ def resolve_alert_endpoint(alert_id):
 @app.route('/api/alerts/history', methods=['GET'])
 def get_alert_history_endpoint():
     """Get alert history"""
+    if alert_service is None:
+        return jsonify({'error': 'Alert service unavailable'}), 503
     try:
         days = int(request.args.get('days', 30))
         limit = int(request.args.get('limit', 100))
@@ -2099,6 +2347,8 @@ def get_alert_history_endpoint():
 @app.route('/api/alerts/subscribe', methods=['POST'])
 def subscribe_alerts_endpoint():
     """Subscribe to alert notifications"""
+    if alert_service is None:
+        return jsonify({'error': 'Alert service unavailable'}), 503
     try:
         data = request.get_json()
         
@@ -2125,6 +2375,8 @@ def subscribe_alerts_endpoint():
 @app.route('/api/alerts/subscriptions', methods=['GET'])
 def get_subscriptions_endpoint():
     """Get all alert subscriptions"""
+    if alert_service is None:
+        return jsonify({'error': 'Alert service unavailable'}), 503
     try:
         subscriptions = alert_service.get_subscriptions()
         
@@ -2220,6 +2472,10 @@ def simulate_maneuver_endpoint():
 # Modify the debris job completion to create alerts and save to history
 def _complete_debris_job(job_id, params, probability, visualization_url=None):
     """Complete a debris job and create alerts/history"""
+    if history_service is None:
+        # nothing to do regarding history
+        return
+
     try:
         # Save to history with thread-safe session handling
         # Use a retry mechanism for database operations
@@ -2362,6 +2618,8 @@ if __name__ == '__main__':
     # Ensure directories exist
     os.makedirs('data', exist_ok=True)
     os.makedirs('output', exist_ok=True)
+    bootstrap_default_satellites()
+    bootstrap_default_debris()
     
     print("=" * 70)
     print("ASTROCLEANAI API SERVER - PHASE 1 + 2 COMPLETE")
