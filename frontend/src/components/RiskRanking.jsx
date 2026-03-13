@@ -86,9 +86,7 @@ export default function RiskRanking() {
       return
     }
 
-    // Set analyzing state for the specific mode
     const setAnalysisState = mode === 'fast' ? setFastAnalysis : setSmartAnalysis
-    
     setAnalysisState(prev => ({ ...prev, analyzing: true, progress: 0 }))
     
     const results = []
@@ -102,18 +100,25 @@ export default function RiskRanking() {
         }
       }
     } else {
-      // Fast Mode: Use intelligent screening to find close pairs
+      // Fast Mode: Get close pairs from API
       try {
         setAnalysisState(prev => ({ ...prev, progress: 5 }))
         
         const screeningResponse = await fetch('http://localhost:5000/api/find_close_pairs?threshold_km=25&max_satellites=50&max_debris=2000')
         const screeningData = await screeningResponse.json()
         
-        if (screeningData.status === 'success' && screeningData.close_pairs) {
-          // Build combinations from close pairs only
+        console.log('=== FAST MODE DEBUG ===')
+        console.log('Screening response:', screeningData)
+        console.log('Status:', screeningData.status)
+        console.log('Close pairs count:', screeningData.close_pairs?.length)
+        
+        if (screeningData.status === 'success' && screeningData.close_pairs && screeningData.close_pairs.length > 0) {
           for (const pair of screeningData.close_pairs) {
             const sat = pair.satellite
+            console.log(`Satellite: ${sat.name} (${sat.norad_id})`)
+            
             for (const debrisInfo of pair.close_debris) {
+              console.log(`  - Debris: ${debrisInfo.name} (${debrisInfo.norad_id})`)
               allCombinations.push({ 
                 sat, 
                 debris: { norad_id: debrisInfo.norad_id, name: debrisInfo.name },
@@ -122,14 +127,17 @@ export default function RiskRanking() {
             }
           }
           
-          console.log(`Fast Mode: Found ${allCombinations.length} close pairs to analyze`)
+          console.log(`✓ Fast Mode: Found ${allCombinations.length} close pairs to analyze`)
+          console.log('First combination:', allCombinations[0])
           setAnalysisState(prev => ({ ...prev, progress: 10 }))
         } else {
-          setError('No close satellite-debris pairs found within 25km')
+          console.error('❌ Screening failed:', screeningData)
+          setError(`No close pairs found. API returned: ${JSON.stringify(screeningData)}`)
           setAnalysisState(prev => ({ ...prev, analyzing: false }))
           return
         }
       } catch (err) {
+        console.error('❌ Screening error:', err)
         setError(`Screening failed: ${err.message}`)
         setAnalysisState(prev => ({ ...prev, analyzing: false }))
         return
@@ -231,6 +239,19 @@ export default function RiskRanking() {
 
   function renderResults(results, mode) {
     if (results.length === 0) {
+      // Check if analysis is complete but no results
+      const currentAnalysis = mode === 'fast' ? fastAnalysis : smartAnalysis
+      if (currentAnalysis.complete && !currentAnalysis.analyzing) {
+        return (
+          <div className="empty-state">
+            <div className="empty-icon">✅</div>
+            <h3>Analysis Complete - No Collision Risks Found</h3>
+            <p>Fast Mode completed successfully but found no collision risks above the threshold.</p>
+            <p>This is good news - no immediate collision threats detected!</p>
+          </div>
+        )
+      }
+      
       return (
         <div className="empty-state">
           <div className="empty-icon">📊</div>

@@ -1,4 +1,4 @@
-"""Collision probability calculation module"""
-from .collision_probability import CollisionProbability
-
-__all__ = ['CollisionProbability']
+"""
+Probability calculation module for AstroCleanAI
+Handles collision probability calculations and Monte Carlo simulations
+"""

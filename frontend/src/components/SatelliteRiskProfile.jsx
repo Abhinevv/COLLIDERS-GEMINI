@@ -10,7 +10,8 @@ export default function SatelliteRiskProfile() {
   const [results, setResults] = useState([])
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [debrisLimit, setDebrisLimit] = useState(50) // Changed from 100 to 50
+  const [debrisLimit, setDebrisLimit] = useState(25) // Reduced default from 50 to 25
+  const [combinedVisualizationUrl, setCombinedVisualizationUrl] = useState(null)
 
   // Format probability - Scientific notation only
   function formatProbability(prob) {
@@ -123,13 +124,13 @@ export default function SatelliteRiskProfile() {
             const payload = {
               debris: debris.norad_id,
               satellite_norad: selectedSatellite,
-              duration_minutes: 1440,  // 24 hours (increased from 10 min)
+              duration_minutes: 60,  // Reduced from 1440 to 60 minutes
               step_seconds: 120,
-              samples: 5000,  // Increased from 100 for better accuracy
+              samples: 500,  // Reduced from 5000 to 500 for faster analysis
               position_uncertainty_km: 2.0,  // Realistic TLE uncertainty (was 1000)
               debris_radius_km: 0.5,
               satellite_radius_km: 0.01,
-              visualize: false,
+              visualize: true,  // Enable visualization
               use_improved_accuracy: true  // Enable high accuracy mode
             }
 
@@ -139,7 +140,7 @@ export default function SatelliteRiskProfile() {
             // Poll for completion
             let jobStatus = await getDebrisJob(jobId)
             let attempts = 0
-            const maxAttempts = 300  // 5 minutes timeout (was 120 = 2 min)
+            const maxAttempts = 120  // 2 minutes timeout (reduced from 5 min)
             while ((jobStatus.status === 'running' || jobStatus.status === 'queued') && attempts < maxAttempts) {
               await new Promise(resolve => setTimeout(resolve, 1000))  // Check every second
               jobStatus = await getDebrisJob(jobId)
@@ -154,16 +155,39 @@ export default function SatelliteRiskProfile() {
                 probability: jobStatus.result.probability || 0,
                 confidence_interval: jobStatus.result.confidence_interval_95,
                 min_distance: jobStatus.result.min_distance_km,
-                risk_level: getRiskLevel(jobStatus.result.probability || 0).level
+                risk_level: getRiskLevel(jobStatus.result.probability || 0).level,
+                visualization_url: jobStatus.visualization_url || null
               }
               console.log(`Result for debris ${debris.norad_id}:`, result)
+              console.log(`  - Job status had visualization_url: ${jobStatus.visualization_url}`)
+              console.log(`  - Full job status:`, jobStatus)
               return result
             } else if (jobStatus.status === 'failed') {
               console.error(`Job ${jobId} failed:`, jobStatus.error)
-              return null
+              // Return a result even if failed, so we can show it was analyzed
+              return {
+                debris_id: debris.norad_id,
+                debris_name: debris.name || debris.norad_id,
+                debris_size: debris.rcs_size,
+                probability: 0,
+                confidence_interval: null,
+                min_distance: null,
+                risk_level: 'SAFE',
+                error: jobStatus.error || 'Analysis failed'
+              }
             } else {
               console.warn(`Job ${jobId} timed out after ${maxAttempts}s, status: ${jobStatus.status}`)
-              return null
+              // Return a result even if timed out
+              return {
+                debris_id: debris.norad_id,
+                debris_name: debris.name || debris.norad_id,
+                debris_size: debris.rcs_size,
+                probability: 0,
+                confidence_interval: null,
+                min_distance: null,
+                risk_level: 'SAFE',
+                error: 'Analysis timed out'
+              }
             }
           } catch (err) {
             console.error(`Error analyzing debris ${debris.norad_id}:`, err)
@@ -181,12 +205,18 @@ export default function SatelliteRiskProfile() {
       }
 
       console.log(`Analysis complete! Total results: ${analysisResults.length}`)
+      console.log('Sample results:', analysisResults.slice(0, 3))
 
       // Sort by probability (highest first)
       analysisResults.sort((a, b) => b.probability - a.probability)
+      
+      console.log(`Setting ${analysisResults.length} results to state`)
       setResults(analysisResults)
       
-      console.log(`Results set:`, analysisResults)
+      console.log(`Results set:`, analysisResults.slice(0, 5))
+      
+      // Note: Combined visualization disabled due to technical issues
+      // Individual visualizations are available in the detailed results table
       
     } catch (err) {
       setError(err.message)
@@ -303,6 +333,36 @@ export default function SatelliteRiskProfile() {
                 <div className="stat-label">Safe Passes</div>
               </div>
             </div>
+            
+            {/* Combined Visualization Button */}
+            <div className="combined-viz-section">
+              <button 
+                className="combined-viz-btn"
+                onClick={async () => {
+                  try {
+                    const debrisIds = results.map(r => r.debris_id)
+                    const response = await fetch('http://localhost:5000/api/visualization/combined', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        satellite_norad: selectedSatellite,
+                        debris_ids: debrisIds,
+                        duration_minutes: 60
+                      })
+                    })
+                    const data = await response.json()
+                    if (data.visualization_url) {
+                      window.open(`http://localhost:5000${data.visualization_url}`, '_blank')
+                    }
+                  } catch (err) {
+                    console.error('Combined visualization error:', err)
+                  }
+                }}
+                title="View all debris orbits together in 3D"
+              >
+                🌍 View Combined 3D Visualization ({results.length} debris)
+              </button>
+            </div>
           </div>
 
           {threatsDetected > 0 ? (
@@ -315,6 +375,7 @@ export default function SatelliteRiskProfile() {
                   <div className="header-cell size">Size</div>
                   <div className="header-cell probability">Probability</div>
                   <div className="header-cell risk">Risk Level</div>
+                  <div className="header-cell actions">Actions</div>
                 </div>
                 
                 {results.filter(r => r.probability > 0).map((result, index) => {
@@ -348,6 +409,24 @@ export default function SatelliteRiskProfile() {
                           {risk.icon} {risk.level}
                         </span>
                       </div>
+                      <div className="table-cell actions">
+                        {result.visualization_url && (
+                          <a 
+                            href={result.visualization_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="viz-link"
+                            title="View 3D Visualization"
+                          >
+                            📊 View
+                          </a>
+                        )}
+                        {result.error && (
+                          <span className="error-indicator" title={result.error}>
+                            ⚠️ Error
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
@@ -361,6 +440,76 @@ export default function SatelliteRiskProfile() {
               <p className="sub-message">All {results.length} debris objects analyzed show safe separation</p>
             </div>
           )}
+
+          {/* Always show detailed results table */}
+          <div className="detailed-results">
+            <h4>📋 Detailed Analysis Results</h4>
+            <div className="results-table">
+              <div className="table-header">
+                <div className="header-cell rank">#</div>
+                <div className="header-cell debris">Debris Object</div>
+                <div className="header-cell size">Size</div>
+                <div className="header-cell probability">Probability</div>
+                <div className="header-cell risk">Status</div>
+                <div className="header-cell actions">Visualization</div>
+              </div>
+              
+              {results.map((result, index) => {
+                const risk = getRiskLevel(result.probability)
+                return (
+                  <div key={index} className="table-row">
+                    <div className="table-cell rank">
+                      <span className="rank-number">{index + 1}</span>
+                    </div>
+                    <div className="table-cell debris">
+                      <div className="cell-content">
+                        <strong>{result.debris_name}</strong>
+                        <span className="cell-id">ID: {result.debris_id}</span>
+                      </div>
+                    </div>
+                    <div className="table-cell size">
+                      <span className={`size-badge ${result.debris_size?.toLowerCase()}`}>
+                        {result.debris_size || 'UNKNOWN'}
+                      </span>
+                    </div>
+                    <div className="table-cell probability">
+                      <span className="probability-value">
+                        {formatProbability(result.probability)}
+                      </span>
+                    </div>
+                    <div className="table-cell risk">
+                      <span 
+                        className="risk-badge"
+                        style={{ backgroundColor: risk.color }}
+                      >
+                        {risk.icon} {risk.level}
+                      </span>
+                    </div>
+                    <div className="table-cell actions">
+                      {result.visualization_url ? (
+                        <a 
+                          href={`http://localhost:5000${result.visualization_url}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="viz-link"
+                          title="View 3D Orbit Visualization"
+                        >
+                          📊 View 3D
+                        </a>
+                      ) : (
+                        <span className="no-viz" title="No visualization available">—</span>
+                      )}
+                      {result.error && (
+                        <span className="error-indicator" title={result.error}>
+                          ⚠️
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
 

@@ -11,4 +11,4 @@ flask-cors>=4.0.0
 
 
 # Phase 1: Database and History Tracking
-sqlalchemy==2.0.23
+sqlalchemy>=2.0.47

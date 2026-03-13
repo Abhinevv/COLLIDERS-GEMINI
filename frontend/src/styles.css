@@ -982,11 +982,31 @@ button:active { transform: translateY(1px) }
   text-decoration: none;
   font-weight: bold;
   transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(136, 201, 240, 0.3);
 }
 
 .view-viz-btn:hover {
   background: #a0d5f5;
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(136, 201, 240, 0.5);
+}
+
+.visualization-section {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.visualization-section h4 {
+  margin-bottom: 15px;
+  color: #88c9f0;
+}
+
+.viz-note {
+  color: #8899aa;
+  font-style: italic;
 }
 
 .interpretation {
@@ -1631,6 +1651,33 @@ select:focus-visible {
   cursor: not-allowed;
 }
 
+.combined-viz-section {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.combined-viz-btn {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
+}
+
+.combined-viz-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(17, 153, 142, 0.5);
+}
+
+.combined-viz-btn:active {
+  transform: translateY(0);
+}
+
 .results-summary {
   margin-bottom: 30px;
 }
@@ -2077,4 +2124,161 @@ select:focus-visible {
   .tab-btn {
     width: 100%;
   }
+}
+/* Visualization and Actions Styles */
+.viz-link {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #2563eb;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 0.8em;
+  transition: background-color 0.2s;
+}
+
+.viz-link:hover {
+  background: #1d4ed8;
+}
+
+.error-indicator {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #dc2626;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.8em;
+  cursor: help;
+}
+
+.table-cell.actions {
+  text-align: center;
+  min-width: 100px;
+}
+
+.header-cell.actions {
+  text-align: center;
+  min-width: 100px;
+}
+
+/* Detailed Results Table */
+.detailed-results {
+  margin-top: 30px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.detailed-results h4 {
+  margin-bottom: 15px;
+  color: #e6eef8;
+  font-size: 1.1em;
+}
+
+.results-table {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rank-number {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  text-align: center;
+  line-height: 24px;
+  font-size: 0.9em;
+  color: #e6eef8;
+}
+
+/* Improved table spacing */
+.table-row {
+  display: grid;
+  grid-template-columns: 50px 2fr 100px 150px 120px;
+  gap: 15px;
+  padding: 12px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  align-items: center;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 50px 2fr 100px 150px 120px;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+  color: #e6eef8;
+}
+
+/* Progress improvements */
+.progress-container {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.progress-container h3 {
+  margin-bottom: 15px;
+  color: #e6eef8;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  transition: width 0.3s ease;
+}
+
+/* Results summary improvements */
+.results-summary {
+  margin-bottom: 25px;
+}
+
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2em;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.stat-card.threat .stat-value {
+  color: #ef4444;
+}
+
+.stat-card.analyzed .stat-value {
+  color: #3b82f6;
+}
+
+.stat-card.safe .stat-value {
+  color: #10b981;
+}
+
+.stat-label {
+  font-size: 0.9em;
+  color: #94a3b8;
 }

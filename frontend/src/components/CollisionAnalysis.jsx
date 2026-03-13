@@ -35,9 +35,11 @@ export default function CollisionAnalysis() {
       interval = setInterval(async () => {
         try {
           const status = await getDebrisJob(jobId)
+          console.log('Job status update:', status)
           setJobStatus(status)
           
           if (status.status === 'completed') {
+            console.log('Job completed! Visualization URL:', status.visualization_url)
             setResult(status.result)
             setAnalyzing(false)
             clearInterval(interval)
@@ -266,18 +268,21 @@ export default function CollisionAnalysis() {
                 </div>
               </div>
 
-              {jobStatus?.visualization_url && (
-                <div className="visualization-link">
+              <div className="visualization-section">
+                <h4>3D Visualization</h4>
+                {(result.visualization_url || jobStatus?.visualization_url) ? (
                   <a 
-                    href={jobStatus.visualization_url} 
+                    href={`http://localhost:5000${result.visualization_url || jobStatus?.visualization_url}`}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="view-viz-btn"
                   >
-                    📊 View 3D Visualization
+                    📊 View 3D Orbit Visualization
                   </a>
-                </div>
-              )}
+                ) : (
+                  <p className="viz-note">Visualization will be available when analysis completes</p>
+                )}
+              </div>
             </div>
 
             <div className="interpretation">

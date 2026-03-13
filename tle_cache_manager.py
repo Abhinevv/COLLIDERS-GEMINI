@@ -1,201 +1,106 @@
 """
-TLE Cache Manager - Space-Track.org Compliant
-Implements proper caching to avoid API violations
+TLE Cache Manager for AstroCleanAI
+Manages cached TLE data to avoid excessive Space-Track API calls
 """
 
 import os
 import json
-import time
 from datetime import datetime, timedelta
-from pathlib import Path
 
 
 class TLECacheManager:
-    """
-    Manages local TLE cache with Space-Track.org compliance
-    - Maximum 1 query per hour
-    - Bulk fetching only
-    - Off-peak timing
-    """
+    """Manages TLE data caching"""
     
-    def __init__(self, cache_dir='data/tle_cache'):
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.metadata_file = self.cache_dir / 'cache_metadata.json'
-        self.json_cache_file = self.cache_dir / 'tle_cache.json'
-        self.min_cache_age_seconds = 3600  # 1 hour minimum
-        self._json_cache = None  # Lazy load JSON cache
-        
-    def get_cache_metadata(self):
-        """Get cache metadata (last update time, object count)"""
-        if not self.metadata_file.exists():
-            return {
-                'last_update': None,
-                'last_update_timestamp': 0,
-                'object_count': 0,
-                'query_count_today': 0,
-                'last_query_date': None
-            }
-        
-        with open(self.metadata_file, 'r') as f:
-            return json.load(f)
+    def __init__(self, cache_file='data/tle_cache/tle_cache.json'):
+        """Initialize cache manager"""
+        self.cache_file = cache_file
+        self.cache_data = {}
+        self._load_cache()
     
-    def save_cache_metadata(self, metadata):
-        """Save cache metadata"""
-        with open(self.metadata_file, 'w') as f:
-            json.dump(metadata, f, indent=2)
-    
-    def is_cache_fresh(self):
-        """Check if cache is fresh (less than 1 hour old)"""
-        metadata = self.get_cache_metadata()
-        if not metadata['last_update']:
-            return False
-        
-        last_update = metadata['last_update_timestamp']
-        age_seconds = time.time() - last_update
-        
-        return age_seconds < self.min_cache_age_seconds
-    
-    def get_cache_age_minutes(self):
-        """Get cache age in minutes"""
-        metadata = self.get_cache_metadata()
-        
-        # Check JSON cache if metadata doesn't exist
-        if not metadata['last_update']:
-            json_cache = self._load_json_cache()
-            if json_cache and 'last_update' in json_cache:
-                # Parse ISO format timestamp
-                try:
-                    from dateutil import parser
-                    last_update_dt = parser.parse(json_cache['last_update'])
-                    age_seconds = (datetime.now(last_update_dt.tzinfo) - last_update_dt).total_seconds()
-                    return age_seconds / 60
-                except:
-                    # Fallback: assume cache is fresh if JSON exists
-                    return 0.0
-            return float('inf')
-        
-        age_seconds = time.time() - metadata['last_update_timestamp']
-        return age_seconds / 60
-    
-    def can_query_spacetrack(self):
-        """Check if we can query Space-Track (respects 1-hour limit)"""
-        if not self.is_cache_fresh():
-            # Check if we're in off-peak time (not XX:00 or XX:30)
-            now = datetime.now()
-            minute = now.minute
-            
-            # Avoid busy periods (within 5 min of top/bottom of hour)
-            if (0 <= minute <= 5) or (25 <= minute <= 35) or (55 <= minute <= 59):
-                return False, "Busy period - wait for off-peak time (10-20 min past hour)"
-            
-            return True, "Cache expired and off-peak time"
-        
-        age_min = self.get_cache_age_minutes()
-        return False, f"Cache is fresh ({age_min:.1f} min old, need 60+ min)"
-    
-    def _load_json_cache(self):
-        """Load the JSON cache file if it exists"""
-        if self._json_cache is not None:
-            return self._json_cache
-        
-        if self.json_cache_file.exists():
-            with open(self.json_cache_file, 'r') as f:
-                self._json_cache = json.load(f)
-                return self._json_cache
-        
-        return None
-    
-    def get_tle_from_cache(self, norad_id):
-        """Get TLE for specific NORAD ID from cache"""
-        norad_id_str = str(norad_id)
-        
-        # Try individual file first
-        tle_file = self.cache_dir / f'tle_{norad_id_str}.txt'
-        
-        if tle_file.exists():
-            with open(tle_file, 'r') as f:
-                lines = f.read().strip().split('\n')
-                if len(lines) >= 3:
-                    return {
-                        'name': lines[0],
-                        'tle_line1': lines[1],
-                        'tle_line2': lines[2]
-                    }
-        
-        # Try JSON cache as fallback
-        json_cache = self._load_json_cache()
-        if json_cache and 'objects' in json_cache:
-            obj = json_cache['objects'].get(norad_id_str)
-            if obj:
-                return {
-                    'name': obj.get('name', f'OBJECT {norad_id_str}'),
-                    'tle_line1': obj['tle_line1'],
-                    'tle_line2': obj['tle_line2']
+    def _load_cache(self):
+        """Load cache from file"""
+        try:
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, 'r') as f:
+                    self.cache_data = json.load(f)
+            else:
+                # Create empty cache
+                os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+                self.cache_data = {
+                    'last_updated': datetime.now().isoformat(),
+                    'satellites': {},
+                    'debris': {}
                 }
+                self._save_cache()
+        except Exception as e:
+            print(f"Warning: Could not load TLE cache: {e}")
+            self.cache_data = {
+                'last_updated': datetime.now().isoformat(),
+                'satellites': {},
+                'debris': {}
+            }
+    
+    def _save_cache(self):
+        """Save cache to file"""
+        try:
+            os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+            with open(self.cache_file, 'w') as f:
+                json.dump(self.cache_data, f, indent=2)
+        except Exception as e:
+            print(f"Warning: Could not save TLE cache: {e}")
+    
+    def get_tle(self, norad_id):
+        """Get TLE data for a NORAD ID"""
+        norad_str = str(norad_id)
+        
+        # Check satellites first
+        if norad_str in self.cache_data.get('satellites', {}):
+            return self.cache_data['satellites'][norad_str].get('tle')
+        
+        # Check debris
+        if norad_str in self.cache_data.get('debris', {}):
+            return self.cache_data['debris'][norad_str].get('tle')
         
         return None
     
-    def save_tle_to_cache(self, norad_id, name, tle_line1, tle_line2):
-        """Save individual TLE to cache"""
-        tle_file = self.cache_dir / f'tle_{norad_id}.txt'
+    def cache_tle(self, norad_id, tle_data, object_type='satellite'):
+        """Cache TLE data"""
+        norad_str = str(norad_id)
         
-        with open(tle_file, 'w') as f:
-            f.write(f"{name}\n")
-            f.write(f"{tle_line1}\n")
-            f.write(f"{tle_line2}\n")
-    
-    def save_bulk_tles(self, tle_data_list):
-        """
-        Save bulk TLE data to cache
+        if object_type not in self.cache_data:
+            self.cache_data[object_type] = {}
         
-        Args:
-            tle_data_list: List of dicts with NORAD_CAT_ID, OBJECT_NAME, TLE_LINE1, TLE_LINE2
-        """
-        count = 0
-        for obj in tle_data_list:
-            norad_id = obj.get('NORAD_CAT_ID')
-            name = obj.get('OBJECT_NAME', f'OBJECT {norad_id}')
-            tle1 = obj.get('TLE_LINE1')
-            tle2 = obj.get('TLE_LINE2')
-            
-            if norad_id and tle1 and tle2:
-                self.save_tle_to_cache(norad_id, name, tle1, tle2)
-                count += 1
+        self.cache_data[object_type][norad_str] = {
+            'tle': tle_data,
+            'cached_at': datetime.now().isoformat()
+        }
         
-        # Update metadata
-        metadata = self.get_cache_metadata()
-        metadata['last_update'] = datetime.now().isoformat()
-        metadata['last_update_timestamp'] = time.time()
-        metadata['object_count'] = count
-        
-        # Track daily query count
-        today = datetime.now().date().isoformat()
-        if metadata.get('last_query_date') == today:
-            metadata['query_count_today'] = metadata.get('query_count_today', 0) + 1
-        else:
-            metadata['query_count_today'] = 1
-            metadata['last_query_date'] = today
-        
-        self.save_cache_metadata(metadata)
-        
-        return count
+        self._save_cache()
     
     def get_cache_stats(self):
         """Get cache statistics"""
-        metadata = self.get_cache_metadata()
-        age_min = self.get_cache_age_minutes()
-        is_fresh = self.is_cache_fresh()
-        can_query, reason = self.can_query_spacetrack()
+        satellites_count = len(self.cache_data.get('satellites', {}))
+        debris_count = len(self.cache_data.get('debris', {}))
         
         return {
-            'cache_fresh': is_fresh,
-            'cache_age_minutes': age_min if age_min != float('inf') else None,
-            'last_update': metadata.get('last_update'),
-            'object_count': metadata.get('object_count', 0),
-            'can_query_spacetrack': can_query,
-            'query_status': reason,
-            'queries_today': metadata.get('query_count_today', 0)
+            'satellites_cached': satellites_count,
+            'debris_cached': debris_count,
+            'total_objects': satellites_count + debris_count,
+            'last_updated': self.cache_data.get('last_updated', 'Never'),
+            'cache_file': self.cache_file,
+            'cache_exists': os.path.exists(self.cache_file)
+        }
+    
+    def refresh_cache(self):
+        """Refresh cache (placeholder - would normally fetch from Space-Track)"""
+        # For now, just update the timestamp
+        self.cache_data['last_updated'] = datetime.now().isoformat()
+        self._save_cache()
+        
+        return {
+            'status': 'success',
+            'message': 'Cache timestamp updated',
+            'updated_at': self.cache_data['last_updated']
         }
 
 
@@ -203,22 +108,8 @@ class TLECacheManager:
 _cache_manager = None
 
 def get_cache_manager():
-    """Get global cache manager instance"""
+    """Get the global cache manager instance"""
     global _cache_manager
     if _cache_manager is None:
         _cache_manager = TLECacheManager()
     return _cache_manager
-
-
-if __name__ == '__main__':
-    # Test cache manager
-    cache = TLECacheManager()
-    stats = cache.get_cache_stats()
-    
-    print("TLE Cache Statistics:")
-    print(f"  Fresh: {stats['cache_fresh']}")
-    print(f"  Age: {stats['cache_age_minutes']} minutes")
-    print(f"  Objects: {stats['object_count']}")
-    print(f"  Can Query: {stats['can_query_spacetrack']}")
-    print(f"  Status: {stats['query_status']}")
-    print(f"  Queries Today: {stats['queries_today']}")

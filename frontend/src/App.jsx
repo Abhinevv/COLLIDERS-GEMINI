@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Dashboard from './components/Dashboard'
 import DebrisTracker from './components/DebrisTracker'
 import CollisionAnalysis from './components/CollisionAnalysis'
@@ -6,14 +6,12 @@ import RiskRanking from './components/RiskRanking'
 import SatelliteRiskProfile from './components/SatelliteRiskProfile'
 import EnhancedFeatures from './components/EnhancedFeatures'
 import Alerts from './components/Alerts'
-import ManeuverPlanner from './components/ManeuverPlanner'
 import ErrorBoundary from './components/ErrorBoundary'
 import Toast from './components/Toast'
 import './styles.css'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
-
   return (
     <div className="app">
       <Toast />
@@ -23,86 +21,26 @@ export default function App() {
           <p>Space Debris Tracking & Collision Avoidance System</p>
         </div>
         <nav className="nav-tabs">
-          <button 
-            className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            📊 Dashboard
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'debris' ? 'active' : ''}`}
-            onClick={() => setActiveTab('debris')}
-          >
-            🛸 Debris Tracker
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'collision' ? 'active' : ''}`}
-            onClick={() => setActiveTab('collision')}
-          >
-            ⚠️ Collision Analysis
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'ranking' ? 'active' : ''}`}
-            onClick={() => setActiveTab('ranking')}
-          >
-            🏆 Risk Ranking
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profile')}
-          >
-            🛰️ Satellite Profile
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'enhanced' ? 'active' : ''}`}
-            onClick={() => setActiveTab('enhanced')}
-          >
-            🔬 Enhanced Features
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'alerts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('alerts')}
-          >
-            🔔 Alerts
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'maneuver' ? 'active' : ''}`}
-            onClick={() => setActiveTab('maneuver')}
-          >
-            🚀 Maneuvers
-          </button>
+          <button className={'nav-tab' + (activeTab === 'dashboard' ? ' active' : '')} onClick={() => setActiveTab('dashboard')}>📊 Dashboard</button>
+          <button className={'nav-tab' + (activeTab === 'debris' ? ' active' : '')} onClick={() => setActiveTab('debris')}>🛸 Debris Tracker</button>
+          <button className={'nav-tab' + (activeTab === 'collision' ? ' active' : '')} onClick={() => setActiveTab('collision')}>⚠️ Collision Analysis</button>
+          <button className={'nav-tab' + (activeTab === 'ranking' ? ' active' : '')} onClick={() => setActiveTab('ranking')}>🏆 Risk Ranking</button>
+          <button className={'nav-tab' + (activeTab === 'profile' ? ' active' : '')} onClick={() => setActiveTab('profile')}>🛰️ Satellite Profile</button>
+          <button className={'nav-tab' + (activeTab === 'enhanced' ? ' active' : '')} onClick={() => setActiveTab('enhanced')}>🔬 Enhanced Features</button>
+          <button className={'nav-tab' + (activeTab === 'alerts' ? ' active' : '')} onClick={() => setActiveTab('alerts')}>🔔 Alerts</button>
         </nav>
       </header>
-
       <main className="app-main">
         <ErrorBoundary>
-          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
-            <Dashboard onNavigate={setActiveTab} />
-          </div>
-          <div style={{ display: activeTab === 'debris' ? 'block' : 'none' }}>
-            <DebrisTracker />
-          </div>
-          <div style={{ display: activeTab === 'collision' ? 'block' : 'none' }}>
-            <CollisionAnalysis />
-          </div>
-          <div style={{ display: activeTab === 'ranking' ? 'block' : 'none' }}>
-            <RiskRanking />
-          </div>
-          <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}>
-            <SatelliteRiskProfile />
-          </div>
-          <div style={{ display: activeTab === 'enhanced' ? 'block' : 'none' }}>
-            <EnhancedFeatures />
-          </div>
-          <div style={{ display: activeTab === 'alerts' ? 'block' : 'none' }}>
-            <Alerts />
-          </div>
-          <div style={{ display: activeTab === 'maneuver' ? 'block' : 'none' }}>
-            <ManeuverPlanner />
-          </div>
+          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}><Dashboard onNavigate={setActiveTab} /></div>
+          <div style={{ display: activeTab === 'debris' ? 'block' : 'none' }}><DebrisTracker /></div>
+          <div style={{ display: activeTab === 'collision' ? 'block' : 'none' }}><CollisionAnalysis /></div>
+          <div style={{ display: activeTab === 'ranking' ? 'block' : 'none' }}><RiskRanking /></div>
+          <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}><SatelliteRiskProfile /></div>
+          <div style={{ display: activeTab === 'enhanced' ? 'block' : 'none' }}><EnhancedFeatures /></div>
+          <div style={{ display: activeTab === 'alerts' ? 'block' : 'none' }}><Alerts /></div>
         </ErrorBoundary>
       </main>
-
       <footer className="app-footer">
         <p>AstroCleanAI - Making space safer through intelligent collision avoidance</p>
         <p className="footer-links">

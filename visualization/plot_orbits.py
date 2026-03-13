@@ -247,6 +247,7 @@ class OrbitVisualizer:
                                 name1="Satellite", name2="Debris"):
         """
         Visualize collision scenario with two orbits and collision indicators
+        Enhanced with better visual context and understanding
         
         Args:
             traj1: Trajectory of first object
@@ -261,9 +262,53 @@ class OrbitVisualizer:
         # Create figure
         self.fig = go.Figure()
         
-        # Add Earth
+        # Add Earth with enhanced appearance
         earth = self.create_earth_sphere()
         self.fig.add_trace(earth)
+        
+        # Add equatorial plane for reference
+        theta = np.linspace(0, 2*np.pi, 100)
+        equator_radius = self.earth_radius * 1.5
+        self.fig.add_trace(go.Scatter3d(
+            x=equator_radius * np.cos(theta),
+            y=equator_radius * np.sin(theta),
+            z=np.zeros_like(theta),
+            mode='lines',
+            name='Equatorial Plane',
+            line=dict(color='rgba(255, 255, 255, 0.2)', width=1, dash='dot'),
+            showlegend=True,
+            hoverinfo='skip'
+        ))
+        
+        # Add coordinate axes for reference
+        axis_length = self.earth_radius * 2
+        # X-axis (red)
+        self.fig.add_trace(go.Scatter3d(
+            x=[0, axis_length], y=[0, 0], z=[0, 0],
+            mode='lines',
+            name='X-axis (0° Longitude)',
+            line=dict(color='rgba(255, 100, 100, 0.3)', width=2),
+            showlegend=True,
+            hoverinfo='skip'
+        ))
+        # Y-axis (green)
+        self.fig.add_trace(go.Scatter3d(
+            x=[0, 0], y=[0, axis_length], z=[0, 0],
+            mode='lines',
+            name='Y-axis (90° E)',
+            line=dict(color='rgba(100, 255, 100, 0.3)', width=2),
+            showlegend=True,
+            hoverinfo='skip'
+        ))
+        # Z-axis (blue) - North Pole
+        self.fig.add_trace(go.Scatter3d(
+            x=[0, 0], y=[0, 0], z=[0, axis_length],
+            mode='lines',
+            name='Z-axis (North Pole)',
+            line=dict(color='rgba(100, 100, 255, 0.3)', width=2),
+            showlegend=True,
+            hoverinfo='skip'
+        ))
         
         # Calculate distances between trajectories at each time step
         distances = []
@@ -287,6 +332,28 @@ class OrbitVisualizer:
         self.fig.add_trace(orbit1)
         self.fig.add_trace(orbit2)
         
+        # Add start/end markers for better orientation
+        # Start point (green sphere)
+        start1 = traj1[0]['position']
+        self.fig.add_trace(go.Scatter3d(
+            x=[start1[0]], y=[start1[1]], z=[start1[2]],
+            mode='markers',
+            name=f'{name1} Start',
+            marker=dict(size=8, color='lime', symbol='diamond'),
+            showlegend=True,
+            hovertemplate=f'<b>{name1} Start Position</b><br>Time: {traj1[0]["time"]}<extra></extra>'
+        ))
+        
+        start2 = traj2[0]['position']
+        self.fig.add_trace(go.Scatter3d(
+            x=[start2[0]], y=[start2[1]], z=[start2[2]],
+            mode='markers',
+            name=f'{name2} Start',
+            marker=dict(size=8, color='orange', symbol='diamond'),
+            showlegend=True,
+            hovertemplate=f'<b>{name2} Start Position</b><br>Time: {traj2[0]["time"]}<extra></extra>'
+        ))
+        
         # Add collision risk zones (spheres showing danger areas)
         if close_approach_event:
             self._add_collision_zones(close_approach_event)
@@ -294,6 +361,24 @@ class OrbitVisualizer:
         # Add distance visualization between trajectories
         if min_len > 0:
             self._add_distance_visualization(traj1, traj2, distances, min_distance_idx)
+            
+            # Add closest approach marker
+            if min_distance_idx >= 0:
+                pos1_closest = traj1[min_distance_idx]['position']
+                pos2_closest = traj2[min_distance_idx]['position']
+                
+                # Add large marker at closest approach (use 'diamond' instead of 'star' for 3D)
+                self.fig.add_trace(go.Scatter3d(
+                    x=[pos1_closest[0]], y=[pos1_closest[1]], z=[pos1_closest[2]],
+                    mode='markers',
+                    name=f'Closest Approach: {min_distance:.2f} km',
+                    marker=dict(size=12, color='yellow', symbol='diamond', 
+                               line=dict(color='white', width=2)),
+                    showlegend=True,
+                    hovertemplate=f'<b>Closest Approach Point</b><br>' +
+                                 f'Distance: {min_distance:.2f} km<br>' +
+                                 f'Time: {traj1[min_distance_idx]["time"]}<extra></extra>'
+                ))
         
         # Add close approach point if provided
         if close_approach_event:
@@ -361,41 +446,47 @@ class OrbitVisualizer:
                 hovertemplate=f'<b>{name2} Start Position</b><br>Time: {traj2[0]["time"]}<extra></extra>'
             ))
         
-        # Enhanced layout settings with better styling
+        # Enhanced layout settings with better styling and annotations
         self.fig.update_layout(
             title={
-                'text': 'Orbital Collision Scenario - 3D View',
+                'text': f'<b>Orbital Collision Scenario - 3D View</b><br>' +
+                       f'<sub>Minimum Distance: {min_distance:.2f} km | ' +
+                       f'{name1} (Cyan) vs {name2} (Red)</sub>',
                 'x': 0.5,
                 'xanchor': 'center',
-                'font': {'size': 24, 'color': '#88c9f0', 'family': 'Arial, sans-serif'}
+                'font': {'size': 22, 'color': '#88c9f0', 'family': 'Arial, sans-serif'}
             },
             scene=dict(
                 xaxis=dict(
-                    title=dict(text='X (km)', font=dict(size=14, color='#88c9f0')),
+                    title=dict(text='X (km) → 0° Longitude', font=dict(size=12, color='#88c9f0')),
                     backgroundcolor='rgb(15, 15, 35)',
                     gridcolor='rgba(136, 201, 240, 0.2)',
                     showbackground=True,
-                    zerolinecolor='rgba(136, 201, 240, 0.3)'
+                    zerolinecolor='rgba(136, 201, 240, 0.3)',
+                    range=[-axis_length, axis_length]
                 ),
                 yaxis=dict(
-                    title=dict(text='Y (km)', font=dict(size=14, color='#88c9f0')),
+                    title=dict(text='Y (km) → 90° E Longitude', font=dict(size=12, color='#88c9f0')),
                     backgroundcolor='rgb(15, 15, 35)',
                     gridcolor='rgba(136, 201, 240, 0.2)',
                     showbackground=True,
-                    zerolinecolor='rgba(136, 201, 240, 0.3)'
+                    zerolinecolor='rgba(136, 201, 240, 0.3)',
+                    range=[-axis_length, axis_length]
                 ),
                 zaxis=dict(
-                    title=dict(text='Z (km)', font=dict(size=14, color='#88c9f0')),
+                    title=dict(text='Z (km) → North Pole', font=dict(size=12, color='#88c9f0')),
                     backgroundcolor='rgb(15, 15, 35)',
                     gridcolor='rgba(136, 201, 240, 0.2)',
                     showbackground=True,
-                    zerolinecolor='rgba(136, 201, 240, 0.3)'
+                    zerolinecolor='rgba(136, 201, 240, 0.3)',
+                    range=[-axis_length, axis_length]
                 ),
                 bgcolor='rgb(10, 10, 25)',
-                aspectmode='data',
+                aspectmode='cube',  # Changed to cube for better perspective
                 camera=dict(
-                    eye=dict(x=1.5, y=1.5, z=1.2),
-                    center=dict(x=0, y=0, z=0)
+                    eye=dict(x=1.8, y=1.8, z=1.5),  # Better viewing angle
+                    center=dict(x=0, y=0, z=0),
+                    up=dict(x=0, y=0, z=1)  # Z-axis points up
                 )
             ),
             paper_bgcolor='rgba(0,0,0,0)',
@@ -405,13 +496,30 @@ class OrbitVisualizer:
             legend=dict(
                 x=0.02,
                 y=0.98,
-                bgcolor='rgba(0, 0, 0, 0.5)',
-                bordercolor='rgba(136, 201, 240, 0.3)',
-                borderwidth=1,
-                font=dict(size=12, color='#e0e0e0')
+                bgcolor='rgba(0, 0, 0, 0.7)',
+                bordercolor='rgba(136, 201, 240, 0.5)',
+                borderwidth=2,
+                font=dict(size=11, color='#e0e0e0'),
+                title=dict(text='<b>Legend</b>', font=dict(size=13, color='#88c9f0'))
             ),
             height=900,
-            margin=dict(l=0, r=0, t=50, b=0)
+            margin=dict(l=0, r=0, t=80, b=0),
+            annotations=[
+                dict(
+                    text='<b>Interactive Controls:</b><br>' +
+                         '• Drag to rotate<br>' +
+                         '• Scroll to zoom<br>' +
+                         '• Hover for details',
+                    xref='paper', yref='paper',
+                    x=0.98, y=0.02,
+                    xanchor='right', yanchor='bottom',
+                    showarrow=False,
+                    bgcolor='rgba(0, 0, 0, 0.7)',
+                    bordercolor='rgba(136, 201, 240, 0.5)',
+                    borderwidth=1,
+                    font=dict(size=10, color='#88c9f0')
+                )
+            ]
         )
         
         return self.fig
@@ -461,7 +569,7 @@ class OrbitVisualizer:
                 z=[maneuver_point[2]],
                 mode='markers',
                 name='Maneuver Point',
-                marker=dict(size=10, color='yellow', symbol='star'),
+                marker=dict(size=10, color='yellow', symbol='diamond'),
                 hovertemplate='Burn executed here<extra></extra>'
             ))
         
