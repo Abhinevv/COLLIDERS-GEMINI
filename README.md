@@ -1,10 +1,10 @@
-# 🛰️ AstroCleanAI
+# 🛰️ COLLIDERS
 
 **Advanced Space Debris Tracking & Collision Avoidance System**
 
-AstroCleanAI is a comprehensive space debris collision avoidance system that combines operational fleet management with NASA-grade analysis tools. It provides real-time tracking, collision probability analysis, automated alerts, and maneuver planning for satellite operators.
+COLLIDERS is a comprehensive space debris collision avoidance system that combines operational fleet management with NASA-grade analysis tools. It provides real-time tracking, collision probability analysis, automated alerts, and maneuver planning for satellite operators.
 
-![AstroCleanAI Dashboard](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
+![COLLIDERS Dashboard](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
 ![Python](https://img.shields.io/badge/Python-3.13-blue)
 ![React](https://img.shields.io/badge/React-18-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -45,8 +45,8 @@ AstroCleanAI is a comprehensive space debris collision avoidance system that com
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/AstroCleanAI.git
-   cd AstroCleanAI
+   git clone https://github.com/your-username/COLLIDERS.git
+   cd COLLIDERS
    ```
 
 2. **Set up Python environment**
@@ -133,7 +133,7 @@ AstroCleanAI is a comprehensive space debris collision avoidance system that com
 
 ### Backend (Python/Flask)
 ```
-AstroCleanAI/
+COLLIDERS/
 ├── api.py                 # Main Flask API server
 ├── main.py               # CLI interface
 ├── fetch_tle.py          # TLE data fetching
@@ -313,6 +313,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**AstroCleanAI** - Making space safer through intelligent collision avoidance
-
+**COLLIDERS** - Making space safer through intelligent collision avoidance
 *Built with ❤️ for the space community*
