@@ -1,4 +1,4 @@
-"""
+﻿"""
 3D Orbit Visualization
 Display satellite trajectories and collision scenarios
 Enhanced with modern dashboard UI
@@ -286,7 +286,7 @@ class OrbitVisualizer:
         self.fig.add_trace(go.Scatter3d(
             x=[0, axis_length], y=[0, 0], z=[0, 0],
             mode='lines',
-            name='X-axis (0° Longitude)',
+            name='X-axis (0 deg Longitude)',
             line=dict(color='rgba(255, 100, 100, 0.3)', width=2),
             showlegend=True,
             hoverinfo='skip'
@@ -295,7 +295,7 @@ class OrbitVisualizer:
         self.fig.add_trace(go.Scatter3d(
             x=[0, 0], y=[0, axis_length], z=[0, 0],
             mode='lines',
-            name='Y-axis (90° E)',
+            name='Y-axis (90 deg E)',
             line=dict(color='rgba(100, 255, 100, 0.3)', width=2),
             showlegend=True,
             hoverinfo='skip'
@@ -458,7 +458,7 @@ class OrbitVisualizer:
             },
             scene=dict(
                 xaxis=dict(
-                    title=dict(text='X (km) → 0° Longitude', font=dict(size=12, color='#88c9f0')),
+                    title=dict(text='X (km) -> 0 deg Longitude', font=dict(size=12, color='#88c9f0')),
                     backgroundcolor='rgb(15, 15, 35)',
                     gridcolor='rgba(136, 201, 240, 0.2)',
                     showbackground=True,
@@ -466,7 +466,7 @@ class OrbitVisualizer:
                     range=[-axis_length, axis_length]
                 ),
                 yaxis=dict(
-                    title=dict(text='Y (km) → 90° E Longitude', font=dict(size=12, color='#88c9f0')),
+                    title=dict(text='Y (km) -> 90 deg E Longitude', font=dict(size=12, color='#88c9f0')),
                     backgroundcolor='rgb(15, 15, 35)',
                     gridcolor='rgba(136, 201, 240, 0.2)',
                     showbackground=True,
@@ -474,7 +474,7 @@ class OrbitVisualizer:
                     range=[-axis_length, axis_length]
                 ),
                 zaxis=dict(
-                    title=dict(text='Z (km) → North Pole', font=dict(size=12, color='#88c9f0')),
+                    title=dict(text='Z (km) -> North Pole', font=dict(size=12, color='#88c9f0')),
                     backgroundcolor='rgb(15, 15, 35)',
                     gridcolor='rgba(136, 201, 240, 0.2)',
                     showbackground=True,
@@ -609,7 +609,7 @@ class OrbitVisualizer:
             satellite_info2: Satellite information dict for second object
         """
         if not self.fig:
-            print("⚠ No figure to save")
+            print("Warning: no figure to save")
             return
         
         # Extract data for statistics
@@ -619,7 +619,7 @@ class OrbitVisualizer:
         safe = analysis_result.get('safe', True) if analysis_result else True
         collision_indicator = f"""
         <div class="collision-indicator {'safe' if safe else 'danger'}">
-            {'✓ NO COLLISION RISK - Objects will safely pass each other' if safe else '⚠ COLLISION RISK DETECTED - Immediate action required'}
+            {'SAFE: No collision risk. Objects will safely pass each other.' if safe else 'WARNING: Collision risk detected. Immediate action required.'}
         </div>
         """
         
@@ -633,7 +633,7 @@ class OrbitVisualizer:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AstroCleanAI - Collision Avoidance Dashboard</title>
+    <title>COLLIDERS - Collision Avoidance Dashboard</title>
     <style>
         * {{
             margin: 0;
@@ -872,7 +872,7 @@ class OrbitVisualizer:
 <body>
     <div class="dashboard-container">
         <div class="header">
-            <h1>🛰️ AstroCleanAI</h1>
+            <h1>COLLIDERS</h1>
             <p>Satellite Collision Avoidance System Dashboard</p>
         </div>
         
@@ -881,7 +881,7 @@ class OrbitVisualizer:
         {collision_indicator}
         
         <div class="visualization-container">
-            <h2>📊 3D Orbit Visualization</h2>
+            <h2>3D Orbit Visualization</h2>
             <div class="plot-container" id="plotly-div"></div>
         </div>
         
@@ -890,7 +890,7 @@ class OrbitVisualizer:
         </div>
         
         <div class="footer">
-            <p>AstroCleanAI - Making space safer through intelligent collision avoidance</p>
+            <p>COLLIDERS - Making space safer through intelligent collision avoidance</p>
         </div>
     </div>
     
@@ -920,7 +920,7 @@ class OrbitVisualizer:
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        print(f"✓ Enhanced dashboard saved to: {filename}")
+        print(f"Enhanced dashboard saved to: {filename}")
     
     def _generate_stats_html(self, analysis_result, satellite_info1=None, satellite_info2=None):
         """Generate statistics HTML from analysis results"""
@@ -929,7 +929,7 @@ class OrbitVisualizer:
         <div class="stats-grid">
             <div class="stat-card safe">
                 <h3>Status</h3>
-                <div class="value">✓ Safe</div>
+                <div class="value">Safe</div>
                 <div class="unit">No collision risk detected</div>
             </div>
             <div class="stat-card">
@@ -968,7 +968,7 @@ class OrbitVisualizer:
         <div class="stats-grid">
             <div class="stat-card {status_class}">
                 <h3>Collision Status</h3>
-                <div class="value">{'✓ SAFE' if safe else '⚠ COLLISION RISK'}</div>
+                <div class="value">{'SAFE' if safe else 'COLLISION RISK'}</div>
                 <div class="unit">{risk_category if not safe else 'No collision detected'}</div>
             </div>
             <div class="stat-card">
@@ -1000,7 +1000,7 @@ class OrbitVisualizer:
         if not info1 and not info2:
             return ""
         
-        info_html = '<div class="info-section"><h2>🛰️ Satellite Information</h2><div class="satellite-cards">'
+        info_html = '<div class="info-section"><h2>Satellite Information</h2><div class="satellite-cards">'
         
         for i, info in enumerate([info1, info2]):
             if not info:
@@ -1021,7 +1021,7 @@ class OrbitVisualizer:
                         <span class="info-label">NORAD ID:</span>
                         <span class="info-value">{norad_id}</span>
                     </div>
-                    {f'<div class="info-item"><span class="info-label">Inclination:</span><span class="info-value">{inclination:.2f}°</span></div>' if inclination else ''}
+                    {f'<div class="info-item"><span class="info-label">Inclination:</span><span class="info-value">{inclination:.2f} deg</span></div>' if inclination else ''}
                     {f'<div class="info-item"><span class="info-label">Mean Altitude:</span><span class="info-value">{altitude:.1f} km</span></div>' if altitude else ''}
                     {f'<div class="info-item"><span class="info-label">Orbital Period:</span><span class="info-value">{period:.1f} min</span></div>' if period else ''}
                     {f'<div class="info-item"><span class="info-label">Eccentricity:</span><span class="info-value">{eccentricity:.6f}</span></div>' if eccentricity else ''}
@@ -1058,15 +1058,15 @@ class OrbitVisualizer:
                             'displaylogo': False
                         }
                     )
-                    print(f"✓ Visualization saved to: {filename}")
+                    print(f"Visualization saved to: {filename}")
             except Exception as e:
-                print(f"✗ Error saving visualization: {e}")
+                print(f"Error saving visualization: {e}")
                 # Fallback: save simple HTML
                 try:
                     self.fig.write_html(filename, include_plotlyjs='cdn')
-                    print(f"✓ Fallback visualization saved to: {filename}")
+                    print(f"Fallback visualization saved to: {filename}")
                 except Exception as e2:
-                    print(f"✗ Fallback also failed: {e2}")
+                    print(f"Fallback also failed: {e2}")
     
     def show(self):
         """Display visualization in browser"""
@@ -1095,8 +1095,8 @@ def main():
     traj1 = prop1.propagate_trajectory(start_time, 90, 60)
     traj2 = prop2.propagate_trajectory(start_time, 90, 60)
     
-    print(f"✓ Generated {len(traj1)} points for object 1")
-    print(f"✓ Generated {len(traj2)} points for object 2")
+    print(f"Generated {len(traj1)} points for object 1")
+    print(f"Generated {len(traj2)} points for object 2")
     
     # Detect close approaches
     detector = CloseApproachDetector(threshold_km=1000.0)
@@ -1107,7 +1107,7 @@ def main():
     
     if events:
         closest = detector.find_closest_approach()
-        print(f"\n✓ Closest approach: {closest['distance']:.2f} km")
+        print(f"\nClosest approach: {closest['distance']:.2f} km")
         
         fig = visualizer.plot_collision_scenario(
             traj1, traj2, closest,
@@ -1122,8 +1122,9 @@ def main():
     
     # Save to file
     visualizer.save_html('visualization/orbit_visualization.html')
-    print("\n✓ You can open orbit_visualization.html in your browser")
+    print("\nYou can open orbit_visualization.html in your browser")
     print("=" * 70)
 
 if __name__ == "__main__":
     main()
+

@@ -1,12 +1,12 @@
 @echo off
-REM Start AstroCleanAI API Server
+REM Start Colliders API Server
 REM Double-click this file or run from terminal
 
 REM Change to script directory
 cd /d "%~dp0"
 
 echo ========================================
-echo Starting AstroCleanAI API Server
+echo Starting Colliders API Server
 echo ========================================
 echo.
 

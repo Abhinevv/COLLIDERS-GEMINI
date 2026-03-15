@@ -1,4 +1,4 @@
-# AstroCleanAI Frontend
+# Colliders Frontend
 
 This is a small Vite + React frontend that reproduces the static dashboard from `output/collision_scenario.html`.
 

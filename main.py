@@ -1,5 +1,5 @@
-"""
-AstroCleanAI - Main Controller
+﻿"""
+COLLIDERS - Main Controller
 Complete collision avoidance pipeline
 """
 
@@ -16,7 +16,7 @@ from optimization.avoidance import AvoidanceManeuver
 from visualization.plot_orbits import OrbitVisualizer
 
 
-class AstroCleanAI:
+class Colliders:
     """Main collision avoidance system controller"""
     
     def __init__(self):
@@ -36,7 +36,7 @@ class AstroCleanAI:
             debris_tle: Path to debris TLE file
         """
         print("=" * 80)
-        print("ASTROCLEANAI - COLLISION AVOIDANCE SYSTEM")
+        print("COLLIDERS - COLLISION AVOIDANCE SYSTEM")
         print("=" * 80)
         print("\n[1/5] Loading Orbital Data...")
         
@@ -55,7 +55,7 @@ class AstroCleanAI:
         self.optimizer = AvoidanceManeuver(self.satellite_prop, max_dv=10.0)
         self.visualizer = OrbitVisualizer()
         
-        print("✓ System initialized\n")
+        print("âœ“ System initialized\n")
     
     def analyze_conjunction(self, start_time, duration_minutes=180, step_seconds=60):
         """
@@ -82,14 +82,14 @@ class AstroCleanAI:
             start_time, duration_minutes, step_seconds
         )
         
-        print(f"✓ Generated {len(traj_sat)} trajectory points\n")
+        print(f"âœ“ Generated {len(traj_sat)} trajectory points\n")
         
         # Detect close approaches
         print("[3/5] Detecting Close Approaches...")
         events = self.detector.check_trajectories(traj_sat, traj_debris)
         
         if not events:
-            print("✓ No close approaches detected - Safe trajectory")
+            print("âœ“ No close approaches detected - Safe trajectory")
             return {
                 'safe': True,
                 'events': [],
@@ -194,7 +194,7 @@ class AstroCleanAI:
         # Save visualization with analysis results for enhanced dashboard
         self.visualizer.save_html(output_file, analysis_result=analysis_result, 
                                   satellite_info1=satellite_info1, satellite_info2=satellite_info2)
-        print(f"✓ Open {output_file} in your browser to view")
+        print(f"âœ“ Open {output_file} in your browser to view")
     
     def run_complete_analysis(self):
         """Run full collision avoidance analysis pipeline"""
@@ -222,9 +222,9 @@ class AstroCleanAI:
         print("=" * 80)
         
         if analysis['safe']:
-            print("✓ STATUS: SAFE - No collision avoidance required")
+            print("âœ“ STATUS: SAFE - No collision avoidance required")
         else:
-            print("⚠ STATUS: COLLISION RISK DETECTED")
+            print("âš  STATUS: COLLISION RISK DETECTED")
             print(f"  Probability: {analysis['risk_assessment']['probability_average']*100:.4f}%")
             print(f"  Recommended Action: Execute avoidance maneuver")
         
@@ -253,7 +253,7 @@ def main():
         download_tle_data()
     
     # Initialize system
-    system = AstroCleanAI()
+    system = Colliders()
     system.setup(
         satellite_tle='data/iss.txt',
         debris_tle='data/debris1.txt'
@@ -265,3 +265,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -107,6 +107,45 @@ export async function getRelevantDebrisForSatellite(satelliteId, limit = 50) {
   return res.json()
 }
 
+// Satellite management
+export async function listManagedSatellites(activeOnly = true) {
+  const res = await fetch(`${BASE}/api/satellites/manage?active_only=${activeOnly}`)
+  if (!res.ok) throw new Error(`List satellites failed: ${res.status}`)
+  return res.json()
+}
+
+export async function addManagedSatellite(payload) {
+  const res = await fetch(`${BASE}/api/satellites/manage/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const txt = await res.text()
+    throw new Error(`Add satellite failed: ${res.status} ${txt}`)
+  }
+  return res.json()
+}
+
+export async function removeManagedSatellite(noradId) {
+  const res = await fetch(`${BASE}/api/satellites/manage/${noradId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Remove satellite failed: ${res.status}`)
+  return res.json()
+}
+
+export async function addDebrisByNorad(noradId) {
+  const res = await fetch(`${BASE}/api/space_debris/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ norad_id: noradId }),
+  })
+  if (!res.ok) {
+    const txt = await res.text()
+    throw new Error(`Add debris failed: ${res.status} ${txt}`)
+  }
+  return res.json()
+}
+
 export default {
   BASE,
   getHealth,

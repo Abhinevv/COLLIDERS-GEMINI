@@ -1,5 +1,5 @@
 """
-Database Manager for AstroCleanAI
+Database Manager for COLLIDERS
 Handles database connections and operations
 """
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     """Manage database connections and sessions"""
     
-    def __init__(self, db_path='data/astrocleanai.db'):
+    def __init__(self, db_path='data/colliders.db'):
         """
         Initialize database manager
         
@@ -109,7 +109,7 @@ class DatabaseManager:
 _db_manager = None
 
 
-def get_db_manager(db_path='data/astrocleanai.db'):
+def get_db_manager(db_path='data/colliders.db'):
     """
     Get or create global database manager instance
     
@@ -123,3 +123,4 @@ def get_db_manager(db_path='data/astrocleanai.db'):
     if _db_manager is None:
         _db_manager = DatabaseManager(db_path)
     return _db_manager
+
