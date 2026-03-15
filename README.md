@@ -5,8 +5,11 @@ About Team
 Name	
 
 Riddhesh Morankar
+
 Shraddha Gaikwad
+
 Abhinav Nigade
+
 Atharva Pednekar
 
 **Advanced Space Debris Tracking & Collision Avoidance System**
@@ -324,3 +327,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **COLLIDERS** - Making space safer through intelligent collision avoidance
 *Built with ❤️ for the space community*
+PPT:- https://docs.google.com/presentation/d/1dsv9QesqDzyFlOb41Yf7-8XjIYAhBviF/edit?usp=sharing&ouid=103457731855340155299&rtpof=true&sd=true
+VIDEO:-https://youtu.be/qn1WUnkTe_A
+
