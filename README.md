@@ -315,13 +315,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **React Team** - Frontend framework
 - **Flask Team** - Backend web framework
 
-## 📞 Support
 
-- **Documentation**: [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
-- **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
-- **Deployment**: [DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md)
-- **Issues**: GitHub Issues tab
-- **Discussions**: GitHub Discussions
 
 ---
 
