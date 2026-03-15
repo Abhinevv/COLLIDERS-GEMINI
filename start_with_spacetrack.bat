@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo Starting AstroCleanAI with Space-Track
+echo Starting CollidersAI with Space-Track
 echo ========================================
 echo.
 

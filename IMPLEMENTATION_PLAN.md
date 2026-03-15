@@ -1,7 +1,7 @@
-# AstroCleanAI - Comprehensive Implementation Plan
+# CollidersAI - Comprehensive Implementation Plan
 
 ## Overview
-This document outlines the detailed implementation plan for high and medium priority features to transform AstroCleanAI into a production-ready satellite collision avoidance system.
+This document outlines the detailed implementation plan for high and medium priority features to transform CollidersAI into a production-ready satellite collision avoidance system.
 
 ---
 
@@ -75,13 +75,13 @@ This document outlines the detailed implementation plan for high and medium prio
   - Click to navigate to Alerts tab
 
 **Files to Create:**
-- `AstroCleanAI/alerts/alert_service.py`
-- `AstroCleanAI/alerts/email_sender.py`
-- `AstroCleanAI/alerts/sms_sender.py`
-- `AstroCleanAI/database/schema.sql`
-- `AstroCleanAI/database/db_manager.py`
-- `AstroCleanAI/frontend/src/components/Alerts.jsx`
-- `AstroCleanAI/config/alerts_config.json`
+- `CollidersAI/alerts/alert_service.py`
+- `CollidersAI/alerts/email_sender.py`
+- `CollidersAI/alerts/sms_sender.py`
+- `CollidersAI/database/schema.sql`
+- `CollidersAI/database/db_manager.py`
+- `CollidersAI/frontend/src/components/Alerts.jsx`
+- `CollidersAI/config/alerts_config.json`
 
 **Dependencies:**
 - `pip install apscheduler sqlalchemy twilio sendgrid`
@@ -159,10 +159,10 @@ CREATE TABLE debris_objects (
   - Show "Last 7 days" summary
 
 **Files to Create:**
-- `AstroCleanAI/history/history_service.py`
-- `AstroCleanAI/database/models.py`
-- `AstroCleanAI/frontend/src/components/HistoryViewer.jsx`
-- `AstroCleanAI/frontend/src/components/TrendChart.jsx`
+- `CollidersAI/history/history_service.py`
+- `CollidersAI/database/models.py`
+- `CollidersAI/frontend/src/components/HistoryViewer.jsx`
+- `CollidersAI/frontend/src/components/TrendChart.jsx`
 
 **Dependencies:**
 - `pip install pandas matplotlib`
@@ -213,10 +213,10 @@ CREATE TABLE debris_objects (
   - Show recommended maneuvers inline
 
 **Files to Create:**
-- `AstroCleanAI/optimization/maneuver_calculator.py`
-- `AstroCleanAI/optimization/orbit_mechanics.py`
-- `AstroCleanAI/frontend/src/components/ManeuverPlanner.jsx`
-- `AstroCleanAI/frontend/src/components/ManeuverCard.jsx`
+- `CollidersAI/optimization/maneuver_calculator.py`
+- `CollidersAI/optimization/orbit_mechanics.py`
+- `CollidersAI/frontend/src/components/ManeuverPlanner.jsx`
+- `CollidersAI/frontend/src/components/ManeuverCard.jsx`
 
 **Dependencies:**
 - Already have poliastro for orbital mechanics
@@ -264,9 +264,9 @@ CREATE TABLE debris_objects (
   - Quick add button
 
 **Files to Create:**
-- `AstroCleanAI/satellites/satellite_manager.py`
-- `AstroCleanAI/frontend/src/components/SatelliteManager.jsx`
-- `AstroCleanAI/frontend/src/components/SatelliteSearch.jsx`
+- `CollidersAI/satellites/satellite_manager.py`
+- `CollidersAI/frontend/src/components/SatelliteManager.jsx`
+- `CollidersAI/frontend/src/components/SatelliteSearch.jsx`
 
 **Estimated Time:** 4-5 hours
 
@@ -307,10 +307,10 @@ CREATE TABLE debris_objects (
   - Density heatmap visualization
 
 **Files to Create:**
-- `AstroCleanAI/debris/debris_filter.py`
-- `AstroCleanAI/debris/density_calculator.py`
-- `AstroCleanAI/frontend/src/components/DebrisFilters.jsx`
-- `AstroCleanAI/frontend/src/components/DensityMap.jsx`
+- `CollidersAI/debris/debris_filter.py`
+- `CollidersAI/debris/density_calculator.py`
+- `CollidersAI/frontend/src/components/DebrisFilters.jsx`
+- `CollidersAI/frontend/src/components/DensityMap.jsx`
 
 **Estimated Time:** 4-5 hours
 
@@ -352,11 +352,11 @@ CREATE TABLE debris_objects (
   - Results export panel
 
 **Files to Create:**
-- `AstroCleanAI/jobs/job_queue.py`
-- `AstroCleanAI/jobs/scheduler.py`
-- `AstroCleanAI/jobs/report_generator.py`
-- `AstroCleanAI/frontend/src/components/BatchAnalysis.jsx`
-- `AstroCleanAI/frontend/src/components/JobQueue.jsx`
+- `CollidersAI/jobs/job_queue.py`
+- `CollidersAI/jobs/scheduler.py`
+- `CollidersAI/jobs/report_generator.py`
+- `CollidersAI/frontend/src/components/BatchAnalysis.jsx`
+- `CollidersAI/frontend/src/components/JobQueue.jsx`
 
 **Dependencies:**
 - `pip install celery redis` (for distributed job queue)
@@ -398,10 +398,10 @@ CREATE TABLE debris_objects (
   - Screenshot/video export
 
 **Files to Create:**
-- `AstroCleanAI/visualization/enhanced_visualizer.py`
-- `AstroCleanAI/visualization/animation_generator.py`
-- `AstroCleanAI/frontend/src/components/AnimatedVisualization.jsx`
-- `AstroCleanAI/frontend/src/components/VisualizationControls.jsx`
+- `CollidersAI/visualization/enhanced_visualizer.py`
+- `CollidersAI/visualization/animation_generator.py`
+- `CollidersAI/frontend/src/components/AnimatedVisualization.jsx`
+- `CollidersAI/frontend/src/components/VisualizationControls.jsx`
 
 **Dependencies:**
 - `pip install imageio ffmpeg-python` (for video export)
@@ -454,7 +454,7 @@ CREATE TABLE debris_objects (
 ## TECHNOLOGY STACK
 
 ### Backend
-- **Database:** SQLite (dev) → PostgreSQL (production)
+- **Database:** SQLite (dev) â†’ PostgreSQL (production)
 - **ORM:** SQLAlchemy
 - **Job Queue:** Celery + Redis
 - **Scheduler:** APScheduler
@@ -472,54 +472,54 @@ CREATE TABLE debris_objects (
 ## FILE STRUCTURE
 
 ```
-AstroCleanAI/
-├── alerts/
-│   ├── __init__.py
-│   ├── alert_service.py
-│   ├── email_sender.py
-│   └── sms_sender.py
-├── database/
-│   ├── __init__.py
-│   ├── db_manager.py
-│   ├── models.py
-│   └── schema.sql
-├── history/
-│   ├── __init__.py
-│   └── history_service.py
-├── jobs/
-│   ├── __init__.py
-│   ├── job_queue.py
-│   ├── scheduler.py
-│   └── report_generator.py
-├── satellites/
-│   ├── __init__.py
-│   └── satellite_manager.py
-├── optimization/
-│   ├── maneuver_calculator.py (new)
-│   └── orbit_mechanics.py (new)
-├── debris/
-│   ├── debris_filter.py (new)
-│   └── density_calculator.py (new)
-├── visualization/
-│   ├── enhanced_visualizer.py (new)
-│   └── animation_generator.py (new)
-├── config/
-│   ├── alerts_config.json
-│   └── database_config.json
-└── frontend/src/components/
-    ├── Alerts.jsx
-    ├── HistoryViewer.jsx
-    ├── TrendChart.jsx
-    ├── ManeuverPlanner.jsx
-    ├── ManeuverCard.jsx
-    ├── SatelliteManager.jsx
-    ├── SatelliteSearch.jsx
-    ├── BatchAnalysis.jsx
-    ├── JobQueue.jsx
-    ├── DebrisFilters.jsx
-    ├── DensityMap.jsx
-    ├── AnimatedVisualization.jsx
-    └── VisualizationControls.jsx
+CollidersAI/
+â”œâ”€â”€ alerts/
+â”‚   â”œâ”€â”€ __init__.py
+â”‚   â”œâ”€â”€ alert_service.py
+â”‚   â”œâ”€â”€ email_sender.py
+â”‚   â””â”€â”€ sms_sender.py
+â”œâ”€â”€ database/
+â”‚   â”œâ”€â”€ __init__.py
+â”‚   â”œâ”€â”€ db_manager.py
+â”‚   â”œâ”€â”€ models.py
+â”‚   â””â”€â”€ schema.sql
+â”œâ”€â”€ history/
+â”‚   â”œâ”€â”€ __init__.py
+â”‚   â””â”€â”€ history_service.py
+â”œâ”€â”€ jobs/
+â”‚   â”œâ”€â”€ __init__.py
+â”‚   â”œâ”€â”€ job_queue.py
+â”‚   â”œâ”€â”€ scheduler.py
+â”‚   â””â”€â”€ report_generator.py
+â”œâ”€â”€ satellites/
+â”‚   â”œâ”€â”€ __init__.py
+â”‚   â””â”€â”€ satellite_manager.py
+â”œâ”€â”€ optimization/
+â”‚   â”œâ”€â”€ maneuver_calculator.py (new)
+â”‚   â””â”€â”€ orbit_mechanics.py (new)
+â”œâ”€â”€ debris/
+â”‚   â”œâ”€â”€ debris_filter.py (new)
+â”‚   â””â”€â”€ density_calculator.py (new)
+â”œâ”€â”€ visualization/
+â”‚   â”œâ”€â”€ enhanced_visualizer.py (new)
+â”‚   â””â”€â”€ animation_generator.py (new)
+â”œâ”€â”€ config/
+â”‚   â”œâ”€â”€ alerts_config.json
+â”‚   â””â”€â”€ database_config.json
+â””â”€â”€ frontend/src/components/
+    â”œâ”€â”€ Alerts.jsx
+    â”œâ”€â”€ HistoryViewer.jsx
+    â”œâ”€â”€ TrendChart.jsx
+    â”œâ”€â”€ ManeuverPlanner.jsx
+    â”œâ”€â”€ ManeuverCard.jsx
+    â”œâ”€â”€ SatelliteManager.jsx
+    â”œâ”€â”€ SatelliteSearch.jsx
+    â”œâ”€â”€ BatchAnalysis.jsx
+    â”œâ”€â”€ JobQueue.jsx
+    â”œâ”€â”€ DebrisFilters.jsx
+    â”œâ”€â”€ DensityMap.jsx
+    â”œâ”€â”€ AnimatedVisualization.jsx
+    â””â”€â”€ VisualizationControls.jsx
 ```
 
 ---
@@ -532,7 +532,7 @@ AstroCleanAI/
   "email": {
     "enabled": true,
     "smtp_server": "smtp.sendgrid.net",
-    "from_address": "alerts@astrocleanai.com"
+    "from_address": "alerts@colliders.com"
   },
   "sms": {
     "enabled": false,
@@ -554,13 +554,13 @@ AstroCleanAI/
 {
   "development": {
     "type": "sqlite",
-    "path": "data/astrocleanai.db"
+    "path": "data/colliders.db"
   },
   "production": {
     "type": "postgresql",
     "host": "localhost",
     "port": 5432,
-    "database": "astrocleanai",
+    "database": "colliders",
     "user": "postgres",
     "password": ""
   }

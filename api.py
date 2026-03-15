@@ -1,5 +1,5 @@
-"""
-AstroCleanAI REST API
+﻿"""
+COLLIDERS REST API
 Provides HTTP endpoints for collision avoidance analysis
 """
 
@@ -42,7 +42,7 @@ def health_check():
     """Enhanced health check endpoint with service status"""
     health_status = {
         'status': 'healthy',
-        'service': 'AstroCleanAI API',
+        'service': 'COLLIDERS API',
         'version': '2.0.0',
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'services': {
@@ -654,7 +654,7 @@ def api_docs():
     html = """<!DOCTYPE html>
 <html>
 <head>
-    <title>AstroCleanAI API Documentation</title>
+    <title>COLLIDERS API Documentation</title>
     <style>
         body { font-family: Segoe UI, Arial, sans-serif; background: linear-gradient(135deg, #f5f7fb 0%, #e9eef8 100%); color: #0f1724; padding: 20px; }
         .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 6px 20px rgba(16,24,40,0.06); }
@@ -671,7 +671,7 @@ def api_docs():
 </head>
 <body>
     <div class="container">
-        <h1>🛰️ AstroCleanAI API Documentation</h1>
+        <h1>COLLIDERS API Documentation</h1>
         <p><strong>Base URL:</strong> <code>http://localhost:5000</code></p>
         
         <h2>Health & Status</h2>
@@ -1191,7 +1191,7 @@ def _run_debris_job(job_id, params):
             
             # Importance sampling: 70% of samples near closest approach, 30% elsewhere
             if np.random.random() < 0.7:
-                # Sample near closest approach (±20% of duration)
+                # Sample near closest approach (Â±20% of duration)
                 time_window = int(n * 0.2)
                 start_idx = max(0, closest_idx - time_window)
                 end_idx = min(n, closest_idx + time_window)
@@ -1596,7 +1596,7 @@ def get_relevant_debris_for_satellite(satellite_id):
         
         limit = int(request.args.get('limit', 50))
         alt_threshold = float(request.args.get('altitude_threshold', 100))  # Stricter: 100km instead of 200km
-        inc_threshold = float(request.args.get('inclination_threshold', 10))  # Stricter: 10° instead of 20°
+        inc_threshold = float(request.args.get('inclination_threshold', 10))  # Stricter: 10 deg instead of 20 deg
         
         db = get_db_manager()
         session = db.get_session()
@@ -1685,10 +1685,10 @@ def get_relevant_debris_for_satellite(satellite_id):
                     # Use stored inclination and period to estimate relevance
                     if debris.inclination_deg is not None and debris.period_minutes is not None:
                         # Calculate altitude from period using Kepler's third law
-                        # T = 2π√(a³/μ) where μ = 398600.4418 km³/s² for Earth
-                        # Solving for a: a = (μ(T/2π)²)^(1/3)
+                        # T = 2Ï€âˆš(aÂ³/Î¼) where Î¼ = 398600.4418 kmÂ³/sÂ² for Earth
+                        # Solving for a: a = (Î¼(T/2Ï€)Â²)^(1/3)
                         period_seconds = debris.period_minutes * 60
-                        mu = 398600.4418  # km³/s²
+                        mu = 398600.4418  # kmÂ³/sÂ²
                         a = (mu * (period_seconds / (2 * 3.14159265359))**2)**(1/3)
                         debris_alt = a - 6378.137  # km
                         
@@ -1768,7 +1768,7 @@ def get_relevant_debris_for_satellite(satellite_id):
             relevant_debris = relevant_debris[:limit]
             
             print(f"Found {len(relevant_debris)} relevant debris for satellite {satellite.name}")
-            print(f"  Satellite orbit: {sat_alt:.1f}km altitude, {sat_inc:.1f}° inclination")
+            print(f"  Satellite orbit: {sat_alt:.1f}km altitude, {sat_inc:.1f} deg inclination")
             
             return jsonify({
                 'status': 'success',
@@ -2066,6 +2066,33 @@ def get_debris_tle(norad_id):
                 'message': f'TLE data for {norad_id} not found'
             }), 404
             
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/space_debris/add', methods=['POST'])
+def add_debris_by_norad():
+    """Add/lookup a debris object by NORAD ID from Space-Track"""
+    try:
+        data = request.get_json()
+        norad_id = str(data.get('norad_id', '')).strip()
+        if not norad_id:
+            return jsonify({'error': 'norad_id required'}), 400
+
+        # Try to fetch TLE from Space-Track to verify it exists
+        tle_data = space_track_api.get_tle_data(norad_id)
+        if not tle_data:
+            return jsonify({'error': f'No TLE data found for NORAD ID {norad_id}. It may not exist or Space-Track may be unavailable.'}), 404
+
+        line1, line2 = tle_data
+        # Parse basic info from TLE
+        return jsonify({
+            'status': 'success',
+            'message': f'Debris object {norad_id} found and verified',
+            'norad_id': norad_id,
+            'tle': {'line1': line1, 'line2': line2}
+        }), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -2657,7 +2684,7 @@ if __name__ == '__main__':
     os.makedirs('output', exist_ok=True)
     
     print("=" * 70)
-    print("ASTROCLEANAI API SERVER - PHASE 1 + 2 COMPLETE")
+    print("COLLIDERS API SERVER - PHASE 1 + 2 COMPLETE")
     print("=" * 70)
     print("\nStarting server on http://localhost:5000")
     print("\nCore Endpoints:")
@@ -2678,3 +2705,4 @@ if __name__ == '__main__':
     
     # Disable debug mode to prevent auto-reload from clearing in-memory job state
     app.run(debug=False, host='0.0.0.0', port=5000)
+

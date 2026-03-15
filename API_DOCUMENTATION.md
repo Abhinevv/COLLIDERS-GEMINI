@@ -1,8 +1,8 @@
-# 🌐 AstroCleanAI REST API Documentation
+# ðŸŒ CollidersAI REST API Documentation
 
 ## Overview
 
-The AstroCleanAI API provides HTTP endpoints for satellite collision avoidance analysis, visualization, and maneuver optimization.
+The CollidersAI API provides HTTP endpoints for satellite collision avoidance analysis, visualization, and maneuver optimization.
 
 **Base URL**: `http://localhost:5000`
 
@@ -28,7 +28,7 @@ Check if the API is running.
 ```json
 {
   "status": "healthy",
-  "service": "AstroCleanAI API",
+  "service": "CollidersAI API",
   "version": "1.0.0",
   "timestamp": "2026-02-20T19:30:00Z"
 }
@@ -350,4 +350,4 @@ print(r.json())
 
 ---
 
-**Happy API coding! 🚀**
+**Happy API coding! ðŸš€**

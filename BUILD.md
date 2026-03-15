@@ -1,6 +1,6 @@
-# AstroCleanAI - Build Guide 🛠️
+# CollidersAI - Build Guide ðŸ› ï¸
 
-This guide will help you set up and build the AstroCleanAI project from scratch.
+This guide will help you set up and build the CollidersAI project from scratch.
 
 ## Prerequisites
 
@@ -17,10 +17,10 @@ python build.py
 ```
 
 This will:
-1. ✓ Create required directories (`data/`, `output/`)
-2. ✓ Check Python version compatibility
-3. ✓ Verify project structure
-4. ✓ Optionally install dependencies
+1. âœ“ Create required directories (`data/`, `output/`)
+2. âœ“ Check Python version compatibility
+3. âœ“ Verify project structure
+4. âœ“ Optionally install dependencies
 
 ## Manual Build Steps
 
@@ -77,10 +77,10 @@ python test_system.py
 ```
 
 This checks:
-- ✓ Directory structure
-- ✓ File structure
-- ✓ Dependencies installed
-- ✓ Module imports
+- âœ“ Directory structure
+- âœ“ File structure
+- âœ“ Dependencies installed
+- âœ“ Module imports
 
 ### Step 4: Download TLE Data
 
@@ -99,19 +99,19 @@ python main.py
 ## Project Structure After Build
 
 ```
-AstroCleanAI/
-│
-├── data/              # TLE files (downloaded)
-│   ├── iss.txt
-│   ├── debris1.txt
-│   └── debris2.txt
-│
-├── output/            # Generated visualizations
-│   └── collision_scenario.html
-│
-├── spaceenv/          # Virtual environment (created)
-│
-└── [all source files]
+CollidersAI/
+â”‚
+â”œâ”€â”€ data/              # TLE files (downloaded)
+â”‚   â”œâ”€â”€ iss.txt
+â”‚   â”œâ”€â”€ debris1.txt
+â”‚   â””â”€â”€ debris2.txt
+â”‚
+â”œâ”€â”€ output/            # Generated visualizations
+â”‚   â””â”€â”€ collision_scenario.html
+â”‚
+â”œâ”€â”€ spaceenv/          # Virtual environment (created)
+â”‚
+â””â”€â”€ [all source files]
 ```
 
 ## Troubleshooting
@@ -209,4 +209,4 @@ After successful build:
 
 ---
 
-**Happy Building! 🚀**
+**Happy Building! ðŸš€**

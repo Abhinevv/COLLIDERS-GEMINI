@@ -5,7 +5,7 @@ REM This script updates the debris database from Space-Track.org
 cd /d "%~dp0"
 
 echo ========================================
-echo AstroCleanAI - Daily Debris Update
+echo CollidersAI - Daily Debris Update
 echo ========================================
 echo Started: %date% %time%
 echo.

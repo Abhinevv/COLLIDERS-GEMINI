@@ -1,5 +1,5 @@
-"""
-TLE Cache Manager for AstroCleanAI
+﻿"""
+TLE Cache Manager for COLLIDERS
 Manages cached TLE data to avoid excessive Space-Track API calls
 """
 

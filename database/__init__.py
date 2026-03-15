@@ -1,4 +1,4 @@
-"""
-Database module for AstroCleanAI
+﻿"""
+Database module for COLLIDERS
 Handles data persistence and database operations
 """

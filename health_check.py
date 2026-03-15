@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-AstroCleanAI Health Check Script
+COLLIDERS Health Check Script
 Verifies that all core components can be imported and initialized
 """
 
@@ -9,7 +9,7 @@ import os
 
 def check_imports():
     """Check if all required modules can be imported"""
-    print("🔍 Checking imports...")
+    print("🔔” Checking imports...")
     
     try:
         # Core dependencies
@@ -37,15 +37,15 @@ def check_imports():
         return True
         
     except ImportError as e:
-        print(f"❌ Import error: {e}")
+        print(f"âŒ Import error: {e}")
         return False
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"âŒ Unexpected error: {e}")
         return False
 
 def check_database():
     """Check database connectivity"""
-    print("\n🗄️ Checking database...")
+    print("\n🗄️ Checking database...")
     
     try:
         from database.db_manager import get_db_manager
@@ -62,16 +62,16 @@ def check_database():
             print("✅ Database connection successful")
             return True
         else:
-            print("❌ Database query failed")
+            print("âŒ Database query failed")
             return False
             
     except Exception as e:
-        print(f"❌ Database error: {e}")
+        print(f"âŒ Database error: {e}")
         return False
 
 def check_files():
     """Check if essential files exist"""
-    print("\n📁 Checking essential files...")
+    print("\n🔔“ Checking essential files...")
     
     essential_files = [
         'api.py',
@@ -89,7 +89,7 @@ def check_files():
             missing_files.append(file_path)
     
     if missing_files:
-        print(f"❌ Missing files: {missing_files}")
+        print(f"âŒ Missing files: {missing_files}")
         return False
     else:
         print("✅ All essential files present")
@@ -97,7 +97,7 @@ def check_files():
 
 def main():
     """Run all health checks"""
-    print("🛰️ AstroCleanAI Health Check")
+    print("🛰️ COLLIDERS Health Check")
     print("=" * 40)
     
     checks = [
@@ -110,11 +110,11 @@ def main():
     
     if all(checks):
         print("🎉 All health checks passed!")
-        print("✅ AstroCleanAI is ready to run")
+        print("✅ COLLIDERS is ready to run")
         return 0
     else:
-        print("⚠️ Some health checks failed")
-        print("❌ Please fix the issues above before running")
+        print("âš ï¸ Some health checks failed")
+        print("âŒ Please fix the issues above before running")
         return 1
 
 if __name__ == '__main__':
