@@ -1,5 +1,13 @@
 # 🛰️ COLLIDERS
 
+About Team
+
+Name	
+
+Riddhesh Morankar
+Shraddha Gaikwad
+Abhinav Nigade
+Atharva Pednekar
 
 **Advanced Space Debris Tracking & Collision Avoidance System**
 
