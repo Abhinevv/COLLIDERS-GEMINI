@@ -25,7 +25,7 @@ echo.
 
 REM Create the scheduled task
 echo Creating scheduled task...
-schtasks /create /tn "CollidersAI Daily Debris Update" /tr "\"%SCRIPT_PATH%\"" /sc daily /st 03:00 /ru SYSTEM /f
+schtasks /create /tn "Colliders Daily Debris Update" /tr "\"%SCRIPT_PATH%\"" /sc daily /st 03:00 /ru SYSTEM /f
 
 if errorlevel 1 (
     echo.
@@ -39,7 +39,7 @@ echo ========================================
 echo SUCCESS: Scheduled task created!
 echo ========================================
 echo.
-echo Task Name: CollidersAI Daily Debris Update
+echo Task Name: Colliders Daily Debris Update
 echo Schedule: Daily at 3:00 AM
 echo Script: %SCRIPT_PATH%
 echo.
@@ -47,7 +47,7 @@ echo The debris database will be automatically updated every day at 3:00 AM.
 echo.
 echo To view or modify the task:
 echo 1. Open Task Scheduler (taskschd.msc)
-echo 2. Look for "CollidersAI Daily Debris Update"
+echo 2. Look for "Colliders Daily Debris Update"
 echo.
 echo To run the update manually:
 echo - Run update_debris_daily.bat

@@ -1,8 +1,8 @@
-# ðŸŒ CollidersAI REST API Documentation
+# Ã°Å¸Å’Â Colliders REST API Documentation
 
 ## Overview
 
-The CollidersAI API provides HTTP endpoints for satellite collision avoidance analysis, visualization, and maneuver optimization.
+The Colliders API provides HTTP endpoints for satellite collision avoidance analysis, visualization, and maneuver optimization.
 
 **Base URL**: `http://localhost:5000`
 
@@ -28,7 +28,7 @@ Check if the API is running.
 ```json
 {
   "status": "healthy",
-  "service": "CollidersAI API",
+  "service": "Colliders API",
   "version": "1.0.0",
   "timestamp": "2026-02-20T19:30:00Z"
 }
@@ -350,4 +350,4 @@ print(r.json())
 
 ---
 
-**Happy API coding! ðŸš€**
+**Happy API coding! Ã°Å¸Å¡â‚¬**

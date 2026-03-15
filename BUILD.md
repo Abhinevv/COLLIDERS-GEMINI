@@ -1,6 +1,6 @@
-# CollidersAI - Build Guide ðŸ› ï¸
+# Colliders - Build Guide Ã°Å¸â€ºÂ Ã¯Â¸Â
 
-This guide will help you set up and build the CollidersAI project from scratch.
+This guide will help you set up and build the Colliders project from scratch.
 
 ## Prerequisites
 
@@ -17,10 +17,10 @@ python build.py
 ```
 
 This will:
-1. âœ“ Create required directories (`data/`, `output/`)
-2. âœ“ Check Python version compatibility
-3. âœ“ Verify project structure
-4. âœ“ Optionally install dependencies
+1. Ã¢Å“â€œ Create required directories (`data/`, `output/`)
+2. Ã¢Å“â€œ Check Python version compatibility
+3. Ã¢Å“â€œ Verify project structure
+4. Ã¢Å“â€œ Optionally install dependencies
 
 ## Manual Build Steps
 
@@ -77,10 +77,10 @@ python test_system.py
 ```
 
 This checks:
-- âœ“ Directory structure
-- âœ“ File structure
-- âœ“ Dependencies installed
-- âœ“ Module imports
+- Ã¢Å“â€œ Directory structure
+- Ã¢Å“â€œ File structure
+- Ã¢Å“â€œ Dependencies installed
+- Ã¢Å“â€œ Module imports
 
 ### Step 4: Download TLE Data
 
@@ -99,19 +99,19 @@ python main.py
 ## Project Structure After Build
 
 ```
-CollidersAI/
-â”‚
-â”œâ”€â”€ data/              # TLE files (downloaded)
-â”‚   â”œâ”€â”€ iss.txt
-â”‚   â”œâ”€â”€ debris1.txt
-â”‚   â””â”€â”€ debris2.txt
-â”‚
-â”œâ”€â”€ output/            # Generated visualizations
-â”‚   â””â”€â”€ collision_scenario.html
-â”‚
-â”œâ”€â”€ spaceenv/          # Virtual environment (created)
-â”‚
-â””â”€â”€ [all source files]
+Colliders/
+Ã¢â€â€š
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ data/              # TLE files (downloaded)
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ iss.txt
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ debris1.txt
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ debris2.txt
+Ã¢â€â€š
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ output/            # Generated visualizations
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ collision_scenario.html
+Ã¢â€â€š
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ spaceenv/          # Virtual environment (created)
+Ã¢â€â€š
+Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ [all source files]
 ```
 
 ## Troubleshooting
@@ -209,4 +209,4 @@ After successful build:
 
 ---
 
-**Happy Building! ðŸš€**
+**Happy Building! Ã°Å¸Å¡â‚¬**

@@ -1,104 +1,104 @@
-# ðŸ“ CollidersAI Project Structure
+# Ã°Å¸â€œÂ Colliders Project Structure
 
-## ðŸ—ï¸ Directory Layout
+## Ã°Å¸Ââ€”Ã¯Â¸Â Directory Layout
 
 ```
-CollidersAI/
-â”œâ”€â”€ ðŸ“„ Core Files
-â”‚   â”œâ”€â”€ api.py                    # Main Flask API server (30+ endpoints)
-â”‚   â”œâ”€â”€ main.py                   # CLI interface for direct usage
-â”‚   â”œâ”€â”€ fetch_tle.py              # TLE data fetching utilities
-â”‚   â”œâ”€â”€ requirements.txt          # Python dependencies
-â”‚   â””â”€â”€ README.md                 # Project documentation
-â”‚
-â”œâ”€â”€ ðŸš€ Startup Scripts
-â”‚   â”œâ”€â”€ start_with_spacetrack.bat # Production startup (with Space-Track)
-â”‚   â”œâ”€â”€ start_api.bat             # Basic API startup
-â”‚   â””â”€â”€ activate_env.bat          # Virtual environment activation
-â”‚
-â”œâ”€â”€ ðŸ—„ï¸ Backend Modules
-â”‚   â”œâ”€â”€ alerts/                   # Real-time collision alert system
-â”‚   â”‚   â”œâ”€â”€ alert_service.py      # Alert management and notifications
-â”‚   â”‚   â””â”€â”€ __init__.py
-â”‚   â”‚
-â”‚   â”œâ”€â”€ database/                 # Data persistence layer
-â”‚   â”‚   â”œâ”€â”€ models.py             # SQLAlchemy database models (5 tables)
-â”‚   â”‚   â”œâ”€â”€ db_manager.py         # Database connection and operations
-â”‚   â”‚   â””â”€â”€ __init__.py
-â”‚   â”‚
-â”‚   â”œâ”€â”€ debris/                   # Space debris analysis
-â”‚   â”‚   â”œâ”€â”€ analyze.py            # Debris collision analysis algorithms
-â”‚   â”‚   â”œâ”€â”€ space_track.py        # Space-Track.org API integration
-â”‚   â”‚   â””â”€â”€ __init__.py
-â”‚   â”‚
-â”‚   â”œâ”€â”€ history/                  # Historical data tracking
-â”‚   â”‚   â”œâ”€â”€ history_service.py    # Analysis history and statistics
-â”‚   â”‚   â””â”€â”€ __init__.py
-â”‚   â”‚
-â”‚   â”œâ”€â”€ probability/              # Collision probability calculations
-â”‚   â”‚   â”œâ”€â”€ collision_probability.py # Monte Carlo simulation
-â”‚   â”‚   â””â”€â”€ __init__.py
-â”‚   â”‚
-â”‚   â”œâ”€â”€ propagation/              # Orbital mechanics
-â”‚   â”‚   â”œâ”€â”€ propagate.py          # SGP4 orbit propagation
-â”‚   â”‚   â”œâ”€â”€ distance_check.py     # Close approach detection
-â”‚   â”‚   â””â”€â”€ __init__.py
-â”‚   â”‚
-â”‚   â”œâ”€â”€ satellites/               # Satellite fleet management
-â”‚   â”‚   â”œâ”€â”€ satellite_manager.py  # Satellite CRUD operations
-â”‚   â”‚   â””â”€â”€ __init__.py
-â”‚   â”‚
-â”‚   â””â”€â”€ visualization/            # Orbit plotting and visualization
-â”‚       â”œâ”€â”€ plot_orbits.py        # 3D orbit visualization
-â”‚       â””â”€â”€ __init__.py
-â”‚
-â”œâ”€â”€ ðŸŒ Frontend Application
-â”‚   â”œâ”€â”€ src/                      # React source code
-â”‚   â”‚   â”œâ”€â”€ components/           # UI components (7 main tabs)
-â”‚   â”‚   â”‚   â”œâ”€â”€ Dashboard.jsx     # System overview
-â”‚   â”‚   â”‚   â”œâ”€â”€ DebrisTracker.jsx # Space debris tracking
-â”‚   â”‚   â”‚   â”œâ”€â”€ CollisionAnalysis.jsx # Monte Carlo analysis
-â”‚   â”‚   â”‚   â”œâ”€â”€ RiskRanking.jsx   # Risk assessment
-â”‚   â”‚   â”‚   â”œâ”€â”€ SatelliteRiskProfile.jsx # Individual satellite analysis
-â”‚   â”‚   â”‚   â”œâ”€â”€ EnhancedFeatures.jsx # NASA-grade analysis tools
-â”‚   â”‚   â”‚   â”œâ”€â”€ Alerts.jsx        # Alert management
-â”‚   â”‚   â”‚   â””â”€â”€ Toast.jsx         # Notification system
-â”‚   â”‚   â”‚
-â”‚   â”‚   â”œâ”€â”€ api.js                # API client functions
-â”‚   â”‚   â”œâ”€â”€ styles.css            # Modern CSS styling
-â”‚   â”‚   â””â”€â”€ App.jsx               # Main application component
-â”‚   â”‚
-â”‚   â”œâ”€â”€ dist/                     # Built production files
-â”‚   â”œâ”€â”€ package.json              # Node.js dependencies
-â”‚   â”œâ”€â”€ vite.config.js            # Vite build configuration
-â”‚   â””â”€â”€ index.html                # HTML entry point
-â”‚
-â”œâ”€â”€ ðŸ’¾ Data Storage
-â”‚   â”œâ”€â”€ data/                     # Application data
-â”‚   â”‚   â”œâ”€â”€ colliders.db       # SQLite database
-â”‚   â”‚   â””â”€â”€ tle_cache/            # TLE data cache
-â”‚   â”‚       â””â”€â”€ tle_cache.json    # Cached orbital elements
-â”‚   â”‚
-â”‚   â””â”€â”€ spaceenv/                 # Python virtual environment
-â”‚
-â”œâ”€â”€ ðŸ“š Documentation
-â”‚   â”œâ”€â”€ API_DOCUMENTATION.md      # Complete API reference
-â”‚   â”œâ”€â”€ API_ENDPOINTS.md          # Endpoint listing
-â”‚   â”œâ”€â”€ ARCHITECTURE.md           # System architecture
-â”‚   â”œâ”€â”€ BUILD.md                  # Build instructions
-â”‚   â”œâ”€â”€ DEPLOYMENT_INSTRUCTIONS.md # Production deployment
-â”‚   â””â”€â”€ IMPLEMENTATION_PLAN.md    # Feature roadmap
-â”‚
-â””â”€â”€ ðŸ”§ Configuration
-    â”œâ”€â”€ .gitignore                # Git ignore patterns
-    â”œâ”€â”€ .vscode/                  # VS Code settings
-    â”œâ”€â”€ .git/                     # Git repository
-    â””â”€â”€ LICENSE                   # MIT license
+Colliders/
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Ã°Å¸â€œâ€ž Core Files
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ api.py                    # Main Flask API server (30+ endpoints)
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ main.py                   # CLI interface for direct usage
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ fetch_tle.py              # TLE data fetching utilities
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ requirements.txt          # Python dependencies
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ README.md                 # Project documentation
+Ã¢â€â€š
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Ã°Å¸Å¡â‚¬ Startup Scripts
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ start_with_spacetrack.bat # Production startup (with Space-Track)
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ start_api.bat             # Basic API startup
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ activate_env.bat          # Virtual environment activation
+Ã¢â€â€š
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Ã°Å¸â€”â€žÃ¯Â¸Â Backend Modules
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ alerts/                   # Real-time collision alert system
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ alert_service.py      # Alert management and notifications
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ database/                 # Data persistence layer
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ models.py             # SQLAlchemy database models (5 tables)
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ db_manager.py         # Database connection and operations
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ debris/                   # Space debris analysis
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ analyze.py            # Debris collision analysis algorithms
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ space_track.py        # Space-Track.org API integration
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ history/                  # Historical data tracking
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ history_service.py    # Analysis history and statistics
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ probability/              # Collision probability calculations
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ collision_probability.py # Monte Carlo simulation
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ propagation/              # Orbital mechanics
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ propagate.py          # SGP4 orbit propagation
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ distance_check.py     # Close approach detection
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ satellites/               # Satellite fleet management
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ satellite_manager.py  # Satellite CRUD operations
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ visualization/            # Orbit plotting and visualization
+Ã¢â€â€š       Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ plot_orbits.py        # 3D orbit visualization
+Ã¢â€â€š       Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Ã°Å¸Å’Â Frontend Application
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ src/                      # React source code
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ components/           # UI components (7 main tabs)
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Dashboard.jsx     # System overview
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ DebrisTracker.jsx # Space debris tracking
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ CollisionAnalysis.jsx # Monte Carlo analysis
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ RiskRanking.jsx   # Risk assessment
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ SatelliteRiskProfile.jsx # Individual satellite analysis
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ EnhancedFeatures.jsx # NASA-grade analysis tools
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Alerts.jsx        # Alert management
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ Toast.jsx         # Notification system
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ api.js                # API client functions
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ styles.css            # Modern CSS styling
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ App.jsx               # Main application component
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ dist/                     # Built production files
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ package.json              # Node.js dependencies
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ vite.config.js            # Vite build configuration
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ index.html                # HTML entry point
+Ã¢â€â€š
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Ã°Å¸â€™Â¾ Data Storage
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ data/                     # Application data
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ colliders.db       # SQLite database
+Ã¢â€â€š   Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ tle_cache/            # TLE data cache
+Ã¢â€â€š   Ã¢â€â€š       Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ tle_cache.json    # Cached orbital elements
+Ã¢â€â€š   Ã¢â€â€š
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ spaceenv/                 # Python virtual environment
+Ã¢â€â€š
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Ã°Å¸â€œÅ¡ Documentation
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ API_DOCUMENTATION.md      # Complete API reference
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ API_ENDPOINTS.md          # Endpoint listing
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ ARCHITECTURE.md           # System architecture
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ BUILD.md                  # Build instructions
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ DEPLOYMENT_INSTRUCTIONS.md # Production deployment
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ IMPLEMENTATION_PLAN.md    # Feature roadmap
+Ã¢â€â€š
+Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ Ã°Å¸â€Â§ Configuration
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ .gitignore                # Git ignore patterns
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ .vscode/                  # VS Code settings
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ .git/                     # Git repository
+    Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ LICENSE                   # MIT license
 ```
 
-## ðŸŽ¯ Key Components
+## Ã°Å¸Å½Â¯ Key Components
 
-### ðŸ–¥ï¸ Backend (Python/Flask)
+### Ã°Å¸â€“Â¥Ã¯Â¸Â Backend (Python/Flask)
 - **30+ REST API endpoints** for complete functionality
 - **SQLite database** with 5 tables for data persistence
 - **Space-Track.org integration** for real orbital debris data
@@ -106,7 +106,7 @@ CollidersAI/
 - **SGP4 orbit propagation** for accurate position calculation
 - **Alert system** with real-time notifications
 
-### ðŸŒ Frontend (React/Vite)
+### Ã°Å¸Å’Â Frontend (React/Vite)
 - **7 comprehensive tabs** for mission control
 - **Modern React 18** with hooks and functional components
 - **Real-time updates** and progress tracking
@@ -114,20 +114,20 @@ CollidersAI/
 - **Dark theme** with professional aesthetics
 - **Interactive visualizations** and data tables
 
-### ðŸ—„ï¸ Database Schema
+### Ã°Å¸â€”â€žÃ¯Â¸Â Database Schema
 1. **analysis_history** - All collision analyses with results
 2. **satellites** - Managed satellite fleet (74 satellites)
 3. **debris_objects** - Tracked debris catalog (725+ objects)
 4. **alerts** - Collision alerts and notifications
 5. **alert_subscriptions** - User alert preferences
 
-### ðŸ”Œ External Integrations
+### Ã°Å¸â€Å’ External Integrations
 - **Space-Track.org API** - Official orbital debris data
 - **NASA algorithms** - Standard collision models
 - **TLE data feeds** - Two-Line Element orbital parameters
 - **NORAD catalog** - Satellite identification system
 
-## ðŸš€ Startup Flow
+## Ã°Å¸Å¡â‚¬ Startup Flow
 
 1. **Environment Setup** - Virtual environment activation
 2. **Dependency Loading** - Python packages and modules
@@ -137,16 +137,16 @@ CollidersAI/
 6. **Frontend Serving** - React application delivery
 7. **Health Check** - System status verification
 
-## ðŸ“Š Data Flow
+## Ã°Å¸â€œÅ  Data Flow
 
 ```
-Space-Track.org â†’ TLE Cache â†’ Database â†’ API â†’ Frontend â†’ User
-     â†‘              â†“           â†“        â†“      â†“
+Space-Track.org Ã¢â€ â€™ TLE Cache Ã¢â€ â€™ Database Ã¢â€ â€™ API Ã¢â€ â€™ Frontend Ã¢â€ â€™ User
+     Ã¢â€ â€˜              Ã¢â€ â€œ           Ã¢â€ â€œ        Ã¢â€ â€œ      Ã¢â€ â€œ
    Real-time    Orbit Prop.  Analysis  REST   React
    Updates      (SGP4)       Engine    API    UI
 ```
 
-## ðŸ”§ Development Workflow
+## Ã°Å¸â€Â§ Development Workflow
 
 1. **Backend Changes** - Modify Python modules in respective directories
 2. **Frontend Changes** - Update React components in `frontend/src/`

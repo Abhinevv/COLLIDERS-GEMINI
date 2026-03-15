@@ -38,10 +38,10 @@ This guide explains how to set up automatic daily updates for the debris databas
 
 1. Open Task Scheduler (`taskschd.msc`)
 2. Click "Create Basic Task"
-3. Name: `CollidersAI Daily Debris Update`
+3. Name: `Colliders Daily Debris Update`
 4. Trigger: Daily at 3:00 AM
 5. Action: Start a program
-6. Program: `C:\path\to\CollidersAI\update_debris_daily.bat`
+6. Program: `C:\path\to\Colliders\update_debris_daily.bat`
 7. Finish
 
 ## Manual Update
@@ -77,7 +77,7 @@ Check the database update status:
 ### Task Not Running
 
 1. Open Task Scheduler
-2. Find "CollidersAI Daily Debris Update"
+2. Find "Colliders Daily Debris Update"
 3. Check "Last Run Result" - should be 0x0 (success)
 4. Check "Last Run Time"
 
@@ -106,7 +106,7 @@ update_debris_daily.bat > logs\debris_update_%date:~-4,4%%date:~-10,2%%date:~-7,
 To stop automatic updates:
 
 1. Open Task Scheduler
-2. Find "CollidersAI Daily Debris Update"
+2. Find "Colliders Daily Debris Update"
 3. Right-click and select "Disable" or "Delete"
 
 ## Notes

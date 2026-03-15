@@ -4,12 +4,12 @@
 
 The intelligent Fast Mode system is **fully implemented** in the code:
 
-### Backend (âœ… Complete)
+### Backend (Ã¢Å“â€¦ Complete)
 - `find_close_pairs.py` - Screens all satellites for debris within 25km
 - `/api/find_close_pairs` endpoint in `api.py` - Returns top 50 satellites with most nearby debris
 - Configurable screening threshold (default 25km)
 
-### Frontend (âœ… Complete, needs build)
+### Frontend (Ã¢Å“â€¦ Complete, needs build)
 - `RiskRanking.jsx` - Modified to call screening endpoint before analysis
 - Intelligent pair selection instead of random debris
 - Updated UI labels and progress text
@@ -17,7 +17,7 @@ The intelligent Fast Mode system is **fully implemented** in the code:
 ## How to Deploy
 
 ### Step 1: Build Frontend
-Run this command in the `CollidersAI` directory:
+Run this command in the `Colliders` directory:
 ```bash
 build_frontend.bat
 ```
@@ -87,7 +87,7 @@ If `npm run build` fails, check:
 4. Try incognito window
 
 ### Screening Takes Too Long
-The screening process checks all 314 Ã— 2000 = 628,000 combinations for distance.
+The screening process checks all 314 Ãƒâ€” 2000 = 628,000 combinations for distance.
 This takes 2-5 minutes. Progress will show in console:
 ```
 Screening satellites...
@@ -106,15 +106,15 @@ This could mean:
 
 ```
 User clicks Fast Mode
-    â†“
+    Ã¢â€ â€œ
 Frontend calls /api/find_close_pairs
-    â†“
+    Ã¢â€ â€œ
 Backend screens all satellites vs all debris
-    â†“
+    Ã¢â€ â€œ
 Returns top 50 satellites with most debris within 25km
-    â†“
+    Ã¢â€ â€œ
 Frontend analyzes only those close pairs
-    â†“
+    Ã¢â€ â€œ
 Results show actual collision probabilities
 ```
 

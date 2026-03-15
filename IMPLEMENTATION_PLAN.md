@@ -1,7 +1,7 @@
-# CollidersAI - Comprehensive Implementation Plan
+# Colliders - Comprehensive Implementation Plan
 
 ## Overview
-This document outlines the detailed implementation plan for high and medium priority features to transform CollidersAI into a production-ready satellite collision avoidance system.
+This document outlines the detailed implementation plan for high and medium priority features to transform Colliders into a production-ready satellite collision avoidance system.
 
 ---
 
@@ -75,13 +75,13 @@ This document outlines the detailed implementation plan for high and medium prio
   - Click to navigate to Alerts tab
 
 **Files to Create:**
-- `CollidersAI/alerts/alert_service.py`
-- `CollidersAI/alerts/email_sender.py`
-- `CollidersAI/alerts/sms_sender.py`
-- `CollidersAI/database/schema.sql`
-- `CollidersAI/database/db_manager.py`
-- `CollidersAI/frontend/src/components/Alerts.jsx`
-- `CollidersAI/config/alerts_config.json`
+- `Colliders/alerts/alert_service.py`
+- `Colliders/alerts/email_sender.py`
+- `Colliders/alerts/sms_sender.py`
+- `Colliders/database/schema.sql`
+- `Colliders/database/db_manager.py`
+- `Colliders/frontend/src/components/Alerts.jsx`
+- `Colliders/config/alerts_config.json`
 
 **Dependencies:**
 - `pip install apscheduler sqlalchemy twilio sendgrid`
@@ -159,10 +159,10 @@ CREATE TABLE debris_objects (
   - Show "Last 7 days" summary
 
 **Files to Create:**
-- `CollidersAI/history/history_service.py`
-- `CollidersAI/database/models.py`
-- `CollidersAI/frontend/src/components/HistoryViewer.jsx`
-- `CollidersAI/frontend/src/components/TrendChart.jsx`
+- `Colliders/history/history_service.py`
+- `Colliders/database/models.py`
+- `Colliders/frontend/src/components/HistoryViewer.jsx`
+- `Colliders/frontend/src/components/TrendChart.jsx`
 
 **Dependencies:**
 - `pip install pandas matplotlib`
@@ -213,10 +213,10 @@ CREATE TABLE debris_objects (
   - Show recommended maneuvers inline
 
 **Files to Create:**
-- `CollidersAI/optimization/maneuver_calculator.py`
-- `CollidersAI/optimization/orbit_mechanics.py`
-- `CollidersAI/frontend/src/components/ManeuverPlanner.jsx`
-- `CollidersAI/frontend/src/components/ManeuverCard.jsx`
+- `Colliders/optimization/maneuver_calculator.py`
+- `Colliders/optimization/orbit_mechanics.py`
+- `Colliders/frontend/src/components/ManeuverPlanner.jsx`
+- `Colliders/frontend/src/components/ManeuverCard.jsx`
 
 **Dependencies:**
 - Already have poliastro for orbital mechanics
@@ -264,9 +264,9 @@ CREATE TABLE debris_objects (
   - Quick add button
 
 **Files to Create:**
-- `CollidersAI/satellites/satellite_manager.py`
-- `CollidersAI/frontend/src/components/SatelliteManager.jsx`
-- `CollidersAI/frontend/src/components/SatelliteSearch.jsx`
+- `Colliders/satellites/satellite_manager.py`
+- `Colliders/frontend/src/components/SatelliteManager.jsx`
+- `Colliders/frontend/src/components/SatelliteSearch.jsx`
 
 **Estimated Time:** 4-5 hours
 
@@ -307,10 +307,10 @@ CREATE TABLE debris_objects (
   - Density heatmap visualization
 
 **Files to Create:**
-- `CollidersAI/debris/debris_filter.py`
-- `CollidersAI/debris/density_calculator.py`
-- `CollidersAI/frontend/src/components/DebrisFilters.jsx`
-- `CollidersAI/frontend/src/components/DensityMap.jsx`
+- `Colliders/debris/debris_filter.py`
+- `Colliders/debris/density_calculator.py`
+- `Colliders/frontend/src/components/DebrisFilters.jsx`
+- `Colliders/frontend/src/components/DensityMap.jsx`
 
 **Estimated Time:** 4-5 hours
 
@@ -352,11 +352,11 @@ CREATE TABLE debris_objects (
   - Results export panel
 
 **Files to Create:**
-- `CollidersAI/jobs/job_queue.py`
-- `CollidersAI/jobs/scheduler.py`
-- `CollidersAI/jobs/report_generator.py`
-- `CollidersAI/frontend/src/components/BatchAnalysis.jsx`
-- `CollidersAI/frontend/src/components/JobQueue.jsx`
+- `Colliders/jobs/job_queue.py`
+- `Colliders/jobs/scheduler.py`
+- `Colliders/jobs/report_generator.py`
+- `Colliders/frontend/src/components/BatchAnalysis.jsx`
+- `Colliders/frontend/src/components/JobQueue.jsx`
 
 **Dependencies:**
 - `pip install celery redis` (for distributed job queue)
@@ -398,10 +398,10 @@ CREATE TABLE debris_objects (
   - Screenshot/video export
 
 **Files to Create:**
-- `CollidersAI/visualization/enhanced_visualizer.py`
-- `CollidersAI/visualization/animation_generator.py`
-- `CollidersAI/frontend/src/components/AnimatedVisualization.jsx`
-- `CollidersAI/frontend/src/components/VisualizationControls.jsx`
+- `Colliders/visualization/enhanced_visualizer.py`
+- `Colliders/visualization/animation_generator.py`
+- `Colliders/frontend/src/components/AnimatedVisualization.jsx`
+- `Colliders/frontend/src/components/VisualizationControls.jsx`
 
 **Dependencies:**
 - `pip install imageio ffmpeg-python` (for video export)
@@ -454,7 +454,7 @@ CREATE TABLE debris_objects (
 ## TECHNOLOGY STACK
 
 ### Backend
-- **Database:** SQLite (dev) â†’ PostgreSQL (production)
+- **Database:** SQLite (dev) Ã¢â€ â€™ PostgreSQL (production)
 - **ORM:** SQLAlchemy
 - **Job Queue:** Celery + Redis
 - **Scheduler:** APScheduler
@@ -472,54 +472,54 @@ CREATE TABLE debris_objects (
 ## FILE STRUCTURE
 
 ```
-CollidersAI/
-â”œâ”€â”€ alerts/
-â”‚   â”œâ”€â”€ __init__.py
-â”‚   â”œâ”€â”€ alert_service.py
-â”‚   â”œâ”€â”€ email_sender.py
-â”‚   â””â”€â”€ sms_sender.py
-â”œâ”€â”€ database/
-â”‚   â”œâ”€â”€ __init__.py
-â”‚   â”œâ”€â”€ db_manager.py
-â”‚   â”œâ”€â”€ models.py
-â”‚   â””â”€â”€ schema.sql
-â”œâ”€â”€ history/
-â”‚   â”œâ”€â”€ __init__.py
-â”‚   â””â”€â”€ history_service.py
-â”œâ”€â”€ jobs/
-â”‚   â”œâ”€â”€ __init__.py
-â”‚   â”œâ”€â”€ job_queue.py
-â”‚   â”œâ”€â”€ scheduler.py
-â”‚   â””â”€â”€ report_generator.py
-â”œâ”€â”€ satellites/
-â”‚   â”œâ”€â”€ __init__.py
-â”‚   â””â”€â”€ satellite_manager.py
-â”œâ”€â”€ optimization/
-â”‚   â”œâ”€â”€ maneuver_calculator.py (new)
-â”‚   â””â”€â”€ orbit_mechanics.py (new)
-â”œâ”€â”€ debris/
-â”‚   â”œâ”€â”€ debris_filter.py (new)
-â”‚   â””â”€â”€ density_calculator.py (new)
-â”œâ”€â”€ visualization/
-â”‚   â”œâ”€â”€ enhanced_visualizer.py (new)
-â”‚   â””â”€â”€ animation_generator.py (new)
-â”œâ”€â”€ config/
-â”‚   â”œâ”€â”€ alerts_config.json
-â”‚   â””â”€â”€ database_config.json
-â””â”€â”€ frontend/src/components/
-    â”œâ”€â”€ Alerts.jsx
-    â”œâ”€â”€ HistoryViewer.jsx
-    â”œâ”€â”€ TrendChart.jsx
-    â”œâ”€â”€ ManeuverPlanner.jsx
-    â”œâ”€â”€ ManeuverCard.jsx
-    â”œâ”€â”€ SatelliteManager.jsx
-    â”œâ”€â”€ SatelliteSearch.jsx
-    â”œâ”€â”€ BatchAnalysis.jsx
-    â”œâ”€â”€ JobQueue.jsx
-    â”œâ”€â”€ DebrisFilters.jsx
-    â”œâ”€â”€ DensityMap.jsx
-    â”œâ”€â”€ AnimatedVisualization.jsx
-    â””â”€â”€ VisualizationControls.jsx
+Colliders/
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ alerts/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ alert_service.py
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ email_sender.py
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ sms_sender.py
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ database/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ db_manager.py
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ models.py
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ schema.sql
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ history/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ history_service.py
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ jobs/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ job_queue.py
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ scheduler.py
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ report_generator.py
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ satellites/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ __init__.py
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ satellite_manager.py
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ optimization/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ maneuver_calculator.py (new)
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ orbit_mechanics.py (new)
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ debris/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ debris_filter.py (new)
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ density_calculator.py (new)
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ visualization/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ enhanced_visualizer.py (new)
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ animation_generator.py (new)
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ config/
+Ã¢â€â€š   Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ alerts_config.json
+Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ database_config.json
+Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ frontend/src/components/
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Alerts.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ HistoryViewer.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ TrendChart.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ ManeuverPlanner.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ ManeuverCard.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ SatelliteManager.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ SatelliteSearch.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ BatchAnalysis.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ JobQueue.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ DebrisFilters.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ DensityMap.jsx
+    Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ AnimatedVisualization.jsx
+    Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ VisualizationControls.jsx
 ```
 
 ---

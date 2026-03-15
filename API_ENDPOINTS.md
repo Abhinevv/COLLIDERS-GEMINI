@@ -1,4 +1,4 @@
-# CollidersAI API Endpoints
+# Colliders API Endpoints
 
 ## Base URL
 ```
@@ -17,7 +17,7 @@ Returns system health status and service availability.
 ```json
 {
   "status": "healthy",
-  "service": "CollidersAI API",
+  "service": "Colliders API",
   "version": "2.0.0",
   "timestamp": "2026-02-25T00:00:00+00:00",
   "services": {
