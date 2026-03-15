@@ -1,0 +1,163 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+spaceenv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+
+# Output files
+output/
+*.html
+*.png
+*.jpg
+*.jpeg
+
+# Data files (TLE cache and satellite data)
+data/
+tle_cache/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node (frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Frontend build
+frontend/dist/
+frontend/build/
+
+# Credentials (IMPORTANT - never commit these!)
+*credentials*
+*password*
+*secret*
+
+# Space-Track specific
+EMAIL_TO_SPACETRACK.txt
+
+# Development and temporary files
+*_TEMP.md
+*_OLD.*
+*_BACKUP.*
+test_*.py
+test_*.ps1
+**/test_*
+quick_*.py
+debug_*.py
+analyze_*.py
+add_*.py
+populate_*.py
+migrate_*.py
+fix_*.py
+check_*.py
+curate_*.py
+refresh_*.py
+validate_*.py
+generate_*.py
+find_*.py
+
+# Documentation cleanup (keep only essential docs)
+*_COMPLETE.md
+*_READY.md
+*_FIXED.md
+*_ADDED.md
+*_SUCCESS.md
+*_STATUS.md
+*_SUMMARY.md
+*_GUIDE.md
+*_PLAN.md
+*_INSTRUCTIONS.md
+TOMORROW_*.md
+SESSION_*.md
+PHASE*_*.md
+FINAL_*.md
+CURRENT_*.md
+QUICK_*.md
+SMART_*.md
+ENHANCED_*.md
+IMPROVED_*.md
+INTELLIGENT_*.md
+PARALLEL_*.md
+MONTE_CARLO_*.md
+COLLISION_ANALYSIS_*.md
+SPACE_TRACK_*.md
+SPACETRACK_*.md
+DEBRIS_*.md
+SATELLITE_*.md
+ACCURACY_*.md
+ACTIVATION_*.md
+FRONTEND_*.md
+FIXES_*.md
+IMPROVEMENTS_*.md
+ROOT_CAUSE_*.md
+ACCOUNT_*.md
+ACCESS_*.md
+COMPLIANCE_*.md
+
+# Batch files (keep only essential startup scripts)
+run_*.bat
+build_*.bat
+install_*.bat
+refresh_*.bat
+rebuild_*.bat
+QUICK_*.bat
+
+# HTML files (temporary)
+*.html
+!frontend/index.html
+!frontend/dist/index.html
+
+# Text files (temporary)
+*.txt
+!requirements.txt

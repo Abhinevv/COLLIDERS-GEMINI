@@ -1,0 +1,14 @@
+numpy>=1.24.0
+scipy>=1.10.0
+pandas>=2.0.0
+matplotlib>=3.7.0
+plotly>=5.14.0
+sgp4>=2.21
+requests>=2.31.0
+streamlit>=1.28.0
+flask>=2.3.0
+flask-cors>=4.0.0
+
+
+# Phase 1: Database and History Tracking
+sqlalchemy>=2.0.47
