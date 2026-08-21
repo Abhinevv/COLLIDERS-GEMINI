@@ -69,7 +69,10 @@ class Satellite(Base):
             'added_at': self.added_at.isoformat() if self.added_at else None,
             'last_updated': self.last_updated.isoformat() if self.last_updated else None,
             'active': self.active,
-            'tle_epoch': self.tle_epoch.isoformat() if self.tle_epoch else None
+            'tle_line1': self.tle_line1,
+            'tle_line2': self.tle_line2,
+            'tle_epoch': self.tle_epoch.isoformat() if self.tle_epoch else None,
+            'has_tle': bool(self.tle_line1 and self.tle_line2),
         }
 
 

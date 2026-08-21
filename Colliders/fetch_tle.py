@@ -35,13 +35,20 @@ class TLEFetcher:
                 'FORMAT': 'TLE'
             }
             
-            response = requests.get(self.base_url, params=params, timeout=10)
+            try:
+                response = requests.get(self.base_url, params=params, timeout=10)
+            except requests.exceptions.SSLError:
+                # Fallback: retry without SSL verification (self-signed / missing cert chain)
+                import warnings
+                warnings.warn("SSL verification failed, retrying without verification", stacklevel=2)
+                response = requests.get(self.base_url, params=params, timeout=10, verify=False)
             response.raise_for_status()
             
-            # Save to file
+            # Save to file — strip blank lines so the file is always exactly 3 lines
             filepath = os.path.join(self.data_dir, filename)
+            clean_lines = [l for l in response.text.splitlines() if l.strip()]
             with open(filepath, 'w') as f:
-                f.write(response.text)
+                f.write('\n'.join(clean_lines) + '\n')
             
             print(f"✓ Successfully downloaded TLE data for {satellite_id}")
             print(f"  Saved to: {filepath}")

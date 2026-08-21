@@ -53,13 +53,13 @@ class SatelliteManager:
             if not success:
                 raise Exception(f"Failed to fetch TLE for {norad_id}")
             
-            # Read TLE
+            # Read TLE — filter blank lines so index is always [name, line1, line2]
             with open(tle_file, 'r') as f:
-                lines = f.readlines()
+                lines = [l.strip() for l in f.readlines() if l.strip()]
                 if len(lines) >= 3:
-                    sat_name = lines[0].strip() if not name else name
-                    tle_line1 = lines[1].strip()
-                    tle_line2 = lines[2].strip()
+                    sat_name = lines[0] if not name else name
+                    tle_line1 = lines[1]
+                    tle_line2 = lines[2]
                 else:
                     raise Exception("Invalid TLE format")
             
@@ -148,12 +148,12 @@ class SatelliteManager:
             if not success:
                 raise Exception(f"Failed to fetch TLE for {norad_id}")
             
-            # Read TLE
+            # Read TLE — filter blank lines
             with open(tle_file, 'r') as f:
-                lines = f.readlines()
+                lines = [l.strip() for l in f.readlines() if l.strip()]
                 if len(lines) >= 3:
-                    satellite.tle_line1 = lines[1].strip()
-                    satellite.tle_line2 = lines[2].strip()
+                    satellite.tle_line1 = lines[1]
+                    satellite.tle_line2 = lines[2]
                     satellite.tle_epoch = datetime.now(timezone.utc)
             
             session.commit()
