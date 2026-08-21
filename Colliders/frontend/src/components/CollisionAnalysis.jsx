@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { startDebrisJob, getDebrisJob } from '../api'
+import { startDebrisJob, getDebrisJob, getDebrisDetails } from '../api'
 
 export default function CollisionAnalysis() {
   const [satellites, setSatellites] = useState([])
@@ -13,16 +13,16 @@ export default function CollisionAnalysis() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
 
-  // Format probability with scientific notation for very small values
-  function formatProbability(prob) {
-    const percentage = prob * 100
-    if (percentage === 0) {
-      return '0 (no collision)'
-    } else if (percentage < 0.0000001) {
-      return `${percentage.toExponential(2)}%`
-    } else {
-      return `${percentage.toFixed(7)}%`
+  // Format probability with clean scientific notation and negligible clamping (< 1.00e-10)
+  function formatProbability(prob, res = null) {
+    if (res?.probability_formatted) {
+      return res.probability_formatted
     }
+    const p = typeof prob === 'number' ? prob : parseFloat(prob) || 0
+    if (p <= 1e-30 || p < 1e-10) {
+      return '< 1.00e-10'
+    }
+    return p.toExponential(2)
   }
 
   useEffect(() => {
@@ -111,12 +111,17 @@ export default function CollisionAnalysis() {
     }
   }
 
-  function getRiskLevel(probability) {
-    if (probability === 0) return { level: 'SAFE', color: '#4caf50' }
-    if (probability < 0.001) return { level: 'LOW', color: '#8bc34a' }
-    if (probability < 0.01) return { level: 'MODERATE', color: '#ff9800' }
-    if (probability < 0.1) return { level: 'HIGH', color: '#ff5722' }
-    return { level: 'CRITICAL', color: '#f44336' }
+  function getRiskLevel(probability, missDistance = null) {
+    const p = typeof probability === 'number' ? probability : parseFloat(probability) || 0
+    const d = missDistance !== null && missDistance !== undefined ? (typeof missDistance === 'number' ? missDistance : parseFloat(missDistance) || 999) : 999
+
+    if (p >= 1e-4 || d < 1.0) {
+      return { level: 'CRITICAL', color: '#ff4444' }
+    }
+    if (p >= 1e-7 || d <= 5.0) {
+      return { level: 'WARNING', color: '#ffaa00' }
+    }
+    return { level: 'SAFE', color: '#00e676' }
   }
 
   return (
@@ -226,15 +231,27 @@ export default function CollisionAnalysis() {
             <h3>Analysis Results</h3>
             
             <div className="result-card">
-              <div className="result-header">
+              <div className="result-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h4>Collision Probability</h4>
+                {result.pinn_accelerated && (
+                  <span style={{ 
+                    fontSize: '0.78rem', 
+                    padding: '3px 8px', 
+                    borderRadius: '6px', 
+                    background: 'rgba(100, 255, 218, 0.15)', 
+                    color: '#64ffda', 
+                    border: '1px solid rgba(100, 255, 218, 0.3)' 
+                  }}>
+                    ⚡ PINN-Accelerated (J2 + Kepler)
+                  </span>
+                )}
               </div>
               <div className="probability-display">
                 <div 
                   className="probability-value"
                   style={{ color: getRiskLevel(result.probability).color }}
                 >
-                  {formatProbability(result.probability)}
+                  {formatProbability(result.probability, result)}
                 </div>
                 <div 
                   className="risk-badge"
@@ -250,11 +267,23 @@ export default function CollisionAnalysis() {
               <div className="result-details">
                 <div className="detail-item">
                   <span className="detail-label">Samples Analyzed:</span>
-                  <span className="detail-value">{samples.toLocaleString()}</span>
+                  <span className="detail-value">{samples.toLocaleString()} (Batched Cholesky)</span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Duration:</span>
-                  <span className="detail-value">{duration} minutes</span>
+                  <span className="detail-label">Propagation Engine:</span>
+                  <span className="detail-value" style={{ color: '#64ffda' }}>{result.method || 'PINN_Monte_Carlo_J2'}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Log10(Pc):</span>
+                  <span className="detail-value" style={{ fontFamily: 'monospace' }}>
+                    {result.log10_probability != null ? result.log10_probability.toFixed(2) : '—'}
+                  </span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Min Miss Distance:</span>
+                  <span className="detail-value">
+                    {result.min_distance_km != null ? `${result.min_distance_km.toFixed(2)} km` : '—'}
+                  </span>
                 </div>
                 <div className="detail-item">
                   <span className="detail-label">Satellite:</span>
@@ -263,10 +292,84 @@ export default function CollisionAnalysis() {
                   </span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Debris ID:</span>
+                  <span className="detail-label">Debris Catalog ID:</span>
                   <span className="detail-value">{debrisId}</span>
                 </div>
               </div>
+
+              {/* Debris Telemetry & Orbital Elements Card */}
+              {(() => {
+                const deb = result?.debris_info || jobStatus?.debris_info || {}
+                const classification = deb.classification || deb.type || 'Debris'
+                const nameDisplay = deb.name || `Object ${debrisId}`
+                const nameClassDisplay = deb.name_classification || `${nameDisplay} / ${classification}`
+                
+                const incDisplay = deb.inclination_deg != null 
+                  ? `${Number(deb.inclination_deg).toFixed(2)}°` 
+                  : (deb.inclination != null ? `${Number(deb.inclination).toFixed(2)}°` : 'TLE Derived')
+                
+                const meanAlt = deb.mean_altitude ?? deb.mean_altitude_km ?? deb.altitude_km
+                const pe = deb.perigee ?? deb.perigee_km
+                const ap = deb.apogee ?? deb.apogee_km
+                
+                let altDisplay = 'N/A'
+                if (meanAlt != null && pe != null && ap != null) {
+                  altDisplay = `${Number(meanAlt).toFixed(1)} km (Perigee: ${Number(pe).toFixed(1)} km / Apogee: ${Number(ap).toFixed(1)} km)`
+                } else if (meanAlt != null) {
+                  altDisplay = `${Number(meanAlt).toFixed(1)} km`
+                } else if (pe != null && ap != null) {
+                  altDisplay = `Perigee: ${Number(pe).toFixed(1)} km / Apogee: ${Number(ap).toFixed(1)} km`
+                }
+
+                const periodDisplay = deb.period_minutes != null 
+                  ? `${Number(deb.period_minutes).toFixed(2)} min`
+                  : (deb.orbital_period != null ? `${Number(deb.orbital_period).toFixed(2)} min` : 'N/A')
+
+                let eccDisplay = '0.000000'
+                if (deb.eccentricity != null) {
+                  eccDisplay = typeof deb.eccentricity === 'number' ? deb.eccentricity.toFixed(6) : String(deb.eccentricity)
+                }
+
+                return (
+                  <div className="debris-telemetry-card" style={{
+                    marginTop: '20px',
+                    padding: '16px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(100, 255, 218, 0.2)',
+                    borderRadius: '10px'
+                  }}>
+                    <h4 style={{ color: '#64ffda', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🛸 Debris Orbital Telemetry & Classification
+                    </h4>
+                    <div className="result-details" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+                      <div className="detail-item">
+                        <span className="detail-label">Object Name / Classification:</span>
+                        <span className="detail-value" style={{ color: '#64ffda' }}>{nameClassDisplay}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">NORAD ID:</span>
+                        <span className="detail-value">{deb.norad_id || debrisId}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Inclination:</span>
+                        <span className="detail-value">{incDisplay}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Altitude / Perigee & Apogee:</span>
+                        <span className="detail-value">{altDisplay}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Orbital Period:</span>
+                        <span className="detail-value">{periodDisplay}</span>
+                      </div>
+                      <div className="detail-item">
+                        <span className="detail-label">Eccentricity:</span>
+                        <span className="detail-value" style={{ fontFamily: 'monospace' }}>{eccDisplay}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
 
               <div className="visualization-section">
                 <h4>3D Visualization</h4>

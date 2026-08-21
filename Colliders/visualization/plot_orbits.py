@@ -1,4 +1,4 @@
-﻿"""
+"""
 3D Orbit Visualization
 Display satellite trajectories and collision scenarios
 Enhanced with modern dashboard UI
@@ -815,20 +815,26 @@ class OrbitVisualizer:
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.2);
+            padding: 12px 14px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 8px;
+            gap: 12px;
         }}
         
         .info-label {{
-            color: #aaa;
+            color: #8892b0;
             font-weight: 500;
+            font-size: 0.9em;
+            flex-shrink: 0;
         }}
         
         .info-value {{
             color: #fff;
-            font-weight: bold;
-            font-size: 1.1em;
+            font-weight: 600;
+            font-size: 0.95em;
+            text-align: right;
+            word-break: break-word;
         }}
         
         .collision-indicator {{
@@ -996,11 +1002,11 @@ class OrbitVisualizer:
         """
     
     def _generate_satellite_info_html(self, info1, info2):
-        """Generate HTML for satellite information section"""
+        """Generate HTML for orbital objects telemetry & classification section"""
         if not info1 and not info2:
             return ""
         
-        info_html = '<div class="info-section"><h2>Satellite Information</h2><div class="satellite-cards">'
+        info_html = '<div class="info-section"><h2>Orbital Objects Telemetry & Classification</h2><div class="satellite-cards">'
         
         for i, info in enumerate([info1, info2]):
             if not info:
@@ -1008,23 +1014,112 @@ class OrbitVisualizer:
             
             name = info.get('name', 'Unknown')
             norad_id = info.get('norad_id', 'N/A')
-            inclination = info.get('inclination', None)
-            altitude = info.get('mean_altitude', None)
-            period = info.get('orbital_period', None)
-            eccentricity = info.get('eccentricity', None)
+            
+            # Object Name / Classification
+            obj_type = info.get('classification') or info.get('type')
+            if not obj_type or str(obj_type).strip().upper() in ('UNKNOWN', 'N/A', 'NONE', ''):
+                classification = 'Unknown Fragment if unassigned'
+            elif 'ROCKET' in str(obj_type).upper() or 'R/B' in str(obj_type).upper():
+                classification = 'Rocket Body'
+            elif 'DEB' in str(obj_type).upper():
+                classification = 'Debris'
+            elif 'PAYLOAD' in str(obj_type).upper() or 'SATELLITE' in str(obj_type).upper():
+                classification = 'Payload'
+            else:
+                classification = str(obj_type).title()
+            
+            name_classification = info.get('name_classification')
+            if not name_classification:
+                name_classification = f"{name} / {classification}"
+            
+            # Inclination (degrees, derived from TLE)
+            inclination = info.get('inclination')
+            if inclination is None:
+                inclination = info.get('inclination_deg')
+            if inclination is not None:
+                try:
+                    inc_str = f"{float(inclination):.2f}°"
+                except (ValueError, TypeError):
+                    inc_str = f"{inclination}°"
+            else:
+                inc_str = "N/A"
+            
+            # Altitude / Perigee & Apogee (in km)
+            altitude = info.get('mean_altitude')
+            if altitude is None:
+                altitude = info.get('mean_altitude_km') or info.get('altitude_km') or info.get('altitude')
+            perigee = info.get('perigee')
+            if perigee is None:
+                perigee = info.get('perigee_km')
+            apogee = info.get('apogee')
+            if apogee is None:
+                apogee = info.get('apogee_km')
+            
+            if altitude is not None and perigee is not None and apogee is not None:
+                alt_str = f"{float(altitude):.1f} km (Perigee: {float(perigee):.1f} km | Apogee: {float(apogee):.1f} km)"
+            elif altitude is not None:
+                alt_str = f"{float(altitude):.1f} km"
+            elif perigee is not None and apogee is not None:
+                alt_str = f"Perigee: {float(perigee):.1f} km | Apogee: {float(apogee):.1f} km"
+            else:
+                alt_str = "N/A"
+            
+            # Orbital Period (minutes)
+            period = info.get('orbital_period')
+            if period is None:
+                period = info.get('period_minutes') or info.get('period')
+            if period is not None:
+                try:
+                    period_str = f"{float(period):.2f} min"
+                except (ValueError, TypeError):
+                    period_str = f"{period} min"
+            else:
+                period_str = "N/A"
+            
+            # Eccentricity
+            ecc = info.get('eccentricity')
+            if ecc is not None:
+                try:
+                    ecc_str = f"{float(ecc):.6f}"
+                except (ValueError, TypeError):
+                    ecc_str = str(ecc)
+            else:
+                ecc_str = "0.000000"
+            
+            role_label = "Primary Satellite" if i == 0 else "Debris / Conjunction Target"
+            icon = "🛰️" if (i == 0 or classification == 'Payload') else "🛸"
             
             info_html += f"""
             <div class="satellite-card">
-                <h3>{name}</h3>
+                <h3>{icon} {name}</h3>
+                <div style="text-align: center; color: #88c9f0; font-size: 0.85em; margin-top: -12px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">
+                    {role_label}
+                </div>
                 <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Object Name / Classification:</span>
+                        <span class="info-value" style="color: #64ffda; text-align: right;">{name_classification}</span>
+                    </div>
                     <div class="info-item">
                         <span class="info-label">NORAD ID:</span>
                         <span class="info-value">{norad_id}</span>
                     </div>
-                    {f'<div class="info-item"><span class="info-label">Inclination:</span><span class="info-value">{inclination:.2f} deg</span></div>' if inclination else ''}
-                    {f'<div class="info-item"><span class="info-label">Mean Altitude:</span><span class="info-value">{altitude:.1f} km</span></div>' if altitude else ''}
-                    {f'<div class="info-item"><span class="info-label">Orbital Period:</span><span class="info-value">{period:.1f} min</span></div>' if period else ''}
-                    {f'<div class="info-item"><span class="info-label">Eccentricity:</span><span class="info-value">{eccentricity:.6f}</span></div>' if eccentricity else ''}
+                    <div class="info-item">
+                        <span class="info-label">Inclination:</span>
+                        <span class="info-value">{inc_str}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Altitude / Perigee & Apogee:</span>
+                        <span class="info-value" style="text-align: right;">{alt_str}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Orbital Period:</span>
+                        <span class="info-value">{period_str}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Eccentricity:</span>
+                        <span class="info-value" style="font-family: monospace;">{ecc_str}</span>
+                    </div>
                 </div>
             </div>
             """

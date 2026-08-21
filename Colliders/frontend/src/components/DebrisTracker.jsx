@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { searchSpaceDebris, getHighRiskDebris, getRecentDebris, getDebrisDetails, addDebrisByNorad } from '../api'
 
 export default function DebrisTracker() {
@@ -184,17 +184,16 @@ export default function DebrisTracker() {
             </div>
             <div className="modal-body">
               <div className="details-grid">
-                <div className="detail-item"><span className="detail-label">Name:</span><span className="detail-value">{selectedDebris.name}</span></div>
+                <div className="detail-item"><span className="detail-label">Name / Classification:</span><span className="detail-value" style={{ color: '#64ffda' }}>{selectedDebris.name_classification || `${selectedDebris.name} / ${selectedDebris.classification || selectedDebris.type || 'Debris'}`}</span></div>
                 <div className="detail-item"><span className="detail-label">NORAD ID:</span><span className="detail-value">{selectedDebris.norad_id}</span></div>
-                <div className="detail-item"><span className="detail-label">Type:</span><span className="detail-value">{selectedDebris.type}</span></div>
-                <div className="detail-item"><span className="detail-label">Country:</span><span className="detail-value">{selectedDebris.country}</span></div>
-                <div className="detail-item"><span className="detail-label">Launch Date:</span><span className="detail-value">{selectedDebris.launch_date || 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Epoch:</span><span className="detail-value">{selectedDebris.epoch || 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Period:</span><span className="detail-value">{selectedDebris.period_minutes ? `${selectedDebris.period_minutes} min` : 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Inclination:</span><span className="detail-value">{selectedDebris.inclination_deg ? `${selectedDebris.inclination_deg}°` : 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Eccentricity:</span><span className="detail-value">{selectedDebris.eccentricity || 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Mean Motion:</span><span className="detail-value">{selectedDebris.mean_motion || 'N/A'}</span></div>
+                <div className="detail-item"><span className="detail-label">Type:</span><span className="detail-value">{selectedDebris.classification || selectedDebris.type || 'Debris'}</span></div>
+                <div className="detail-item"><span className="detail-label">Country:</span><span className="detail-value">{selectedDebris.country || 'N/A'}</span></div>
+                <div className="detail-item"><span className="detail-label">Altitude / Perigee & Apogee:</span><span className="detail-value">{selectedDebris.mean_altitude != null ? `${Number(selectedDebris.mean_altitude).toFixed(1)} km (Perigee: ${selectedDebris.perigee_km != null ? Number(selectedDebris.perigee_km).toFixed(1) : '—'} km / Apogee: ${selectedDebris.apogee_km != null ? Number(selectedDebris.apogee_km).toFixed(1) : '—'} km)` : (selectedDebris.apogee_km != null ? `Perigee: ${selectedDebris.perigee_km} km / Apogee: ${selectedDebris.apogee_km} km` : 'N/A')}</span></div>
+                <div className="detail-item"><span className="detail-label">Inclination:</span><span className="detail-value">{selectedDebris.inclination_deg != null ? `${Number(selectedDebris.inclination_deg).toFixed(2)}°` : 'N/A'}</span></div>
+                <div className="detail-item"><span className="detail-label">Period:</span><span className="detail-value">{selectedDebris.period_minutes != null ? `${Number(selectedDebris.period_minutes).toFixed(2)} min` : 'N/A'}</span></div>
+                <div className="detail-item"><span className="detail-label">Eccentricity:</span><span className="detail-value" style={{ fontFamily: 'monospace' }}>{selectedDebris.eccentricity != null ? (typeof selectedDebris.eccentricity === 'number' ? selectedDebris.eccentricity.toFixed(6) : selectedDebris.eccentricity) : 'N/A'}</span></div>
                 <div className="detail-item"><span className="detail-label">RCS Size:</span><span className="detail-value">{selectedDebris.rcs_size || 'N/A'}</span></div>
+                <div className="detail-item"><span className="detail-label">Launch Date:</span><span className="detail-value">{selectedDebris.launch_date || 'N/A'}</span></div>
               </div>
             </div>
           </div>

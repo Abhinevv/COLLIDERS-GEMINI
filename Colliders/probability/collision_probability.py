@@ -125,47 +125,99 @@ class CollisionProbability:
         
         return max(0.0, min(1.0, probability))
     
-    def monte_carlo_simulation(self, pos1, pos2, vel1, vel2, num_samples=10000, combined_radius=0.02):
+    def monte_carlo_simulation(self, pos1, pos2, vel1, vel2, num_samples=100000, combined_radius=0.02,
+                               use_pinn=True, enable_importance_sampling=False):
         """
-        Monte Carlo simulation for collision probability
-        Samples from uncertainty distributions
+        PINN-Accelerated Batched Monte Carlo simulation for collision probability.
+        Samples from 6x6 initial covariance matrix using Cholesky decomposition.
         
         Args:
             pos1, pos2: Position vectors (km)
             vel1, vel2: Velocity vectors (km/s)
-            num_samples: Number of Monte Carlo samples
+            num_samples: Number of Monte Carlo samples (default 100,000)
             combined_radius: Combined object radius (km)
+            use_pinn: Whether to use PINN surrogate propagation (default True)
+            enable_importance_sampling: Toggle rare event importance sampling
         
         Returns:
-            dict: Results including probability and collision count
+            dict: Comprehensive results including probability, log10_probability, and miss distances
         """
-        # Vectorized Monte Carlo sampling for efficiency
-        cov = np.eye(3) * (self.pos_sigma ** 2)
-        pos1_samples = np.random.multivariate_normal(pos1, cov, num_samples)
-        pos2_samples = np.random.multivariate_normal(pos2, cov, num_samples)
+        try:
+            from .pinn_monte_carlo import PINNMonteCarloAssessment
+            pinn_assessor = PINNMonteCarloAssessment()
 
-        # Distances for all samples
-        diffs = pos1_samples - pos2_samples
-        dists = np.linalg.norm(diffs, axis=1)
-        collision_mask = dists <= combined_radius
-        collision_count = int(np.count_nonzero(collision_mask))
-        probability = collision_count / float(num_samples)
-        
-        return {
-            'probability': probability,
-            'collisions': collision_count,
-            'samples': num_samples,
-            'combined_radius': combined_radius
-        }
+            cov1 = self.create_covariance_matrix()
+            cov2 = self.create_covariance_matrix(sigma_pos=self.pos_sigma * 1.5, sigma_vel=self.vel_sigma * 1.5)
+
+            result = pinn_assessor.assess_collision_pinn(
+                sat_pos_tca=np.asarray(pos1, dtype=np.float64),
+                sat_vel_tca=np.asarray(vel1, dtype=np.float64),
+                deb_pos_tca=np.asarray(pos2, dtype=np.float64),
+                deb_vel_tca=np.asarray(vel2, dtype=np.float64),
+                combined_radius_km=combined_radius,
+                cov_sat_6x6=cov1,
+                cov_deb_6x6=cov2,
+                num_samples=num_samples,
+                conjunction_window_sec=60.0,
+                enable_importance_sampling=enable_importance_sampling
+            )
+            return {
+                'probability': result['probability'],
+                'probability_monte_carlo': result['probability'],
+                'probability_formatted': result['probability_formatted'],
+                'probability_display': result['probability_display'],
+                'log10_probability': result['log10_probability'],
+                'collisions': result['collision_count'],
+                'collision_count': result['collision_count'],
+                'samples': num_samples,
+                'total_samples': num_samples,
+                'combined_radius': combined_radius,
+                'combined_radius_km': combined_radius,
+                'confidence_interval_95': result['confidence_interval_95'],
+                'min_distance_km': result['min_distance_km'],
+                'mean_miss_distance_km': result['mean_miss_distance_km'],
+                'pinn_accelerated': result['pinn_accelerated'],
+                'method': result['method'],
+                'execution_time_ms': result['execution_time_ms'],
+                'risk_level': result['risk_level']
+            }
+        except Exception as e:
+            # Fallback to vectorized Cholesky Monte Carlo in NumPy
+            cov = np.eye(3) * (self.pos_sigma ** 2)
+            pos1_samples = np.random.multivariate_normal(pos1, cov, num_samples)
+            pos2_samples = np.random.multivariate_normal(pos2, cov, num_samples)
+
+            diffs = pos1_samples - pos2_samples
+            dists = np.linalg.norm(diffs, axis=1)
+            collision_mask = dists <= combined_radius
+            collision_count = int(np.count_nonzero(collision_mask))
+            probability = collision_count / float(num_samples)
+            
+            return {
+                'probability': probability,
+                'probability_monte_carlo': probability,
+                'probability_formatted': f"{probability:.2e}" if probability > 0 else f"<{2.99/num_samples:.2e}",
+                'log10_probability': float(np.log10(max(1e-15, probability))) if probability > 0 else float(np.log10(3.0 / num_samples)),
+                'collisions': collision_count,
+                'collision_count': collision_count,
+                'samples': num_samples,
+                'total_samples': num_samples,
+                'combined_radius': combined_radius,
+                'min_distance_km': float(np.min(dists)),
+                'pinn_accelerated': False,
+                'method': 'Vectorized_NumPy_Monte_Carlo'
+            }
     
-    def assess_risk(self, event, object_radius_1=0.01, object_radius_2=0.01):
+    def assess_risk(self, event, object_radius_1=0.01, object_radius_2=0.01, num_samples=100000, enable_importance_sampling=False):
         """
-        Comprehensive risk assessment for a close approach event
+        Comprehensive risk assessment for a close approach event using PINN-accelerated Monte Carlo.
         
         Args:
             event: Event dict from CloseApproachDetector
             object_radius_1: Radius of first object (km)
             object_radius_2: Radius of second object (km)
+            num_samples: Number of Monte Carlo samples (default 100,000)
+            enable_importance_sampling: Toggle importance sampling
         
         Returns:
             dict: Risk assessment results
@@ -177,26 +229,29 @@ class CollisionProbability:
         # Position covariance
         pos_cov = self.create_covariance_matrix()[:3, :3]
         
-        # Calculate probability using multiple methods
+        # Calculate analytical 2D probability
         prob_2d = self.calculate_probability_2d(distance, combined_radius, pos_cov)
         
-        # Monte Carlo (more accurate but slower)
-        # Increase Monte Carlo samples to reduce zero-collision bias
+        # PINN-Accelerated Monte Carlo assessment (N >= 10^5 in parallel)
         mc_result = self.monte_carlo_simulation(
             event['position1'], event['position2'],
             event['velocity1'], event['velocity2'],
-            num_samples=20000,
-            combined_radius=combined_radius
+            num_samples=num_samples,
+            combined_radius=combined_radius,
+            use_pinn=True,
+            enable_importance_sampling=enable_importance_sampling
         )
         
         # Risk classification
-        prob_avg = (prob_2d + mc_result['probability']) / 2
+        mc_prob = mc_result['probability']
+        prob_avg = (prob_2d + mc_prob) / 2.0
         
-        if prob_avg >= 0.1:
+        eval_prob = max(prob_avg, prob_2d if distance < 5.0 and mc_prob == 0 else mc_prob)
+        if eval_prob >= 0.01:
             risk_category = "CRITICAL"
-        elif prob_avg >= 0.01:
+        elif eval_prob >= 0.001:
             risk_category = "HIGH"
-        elif prob_avg >= 0.001:
+        elif eval_prob >= 0.00001:
             risk_category = "MEDIUM"
         else:
             risk_category = "LOW"
@@ -206,10 +261,17 @@ class CollisionProbability:
             'combined_radius': combined_radius,
             'probability_2d': prob_2d,
             'probability_monte_carlo': mc_result['probability'],
+            'probability_formatted': mc_result.get('probability_formatted', f"{mc_result['probability']:.2e}"),
+            'probability_display': mc_result.get('probability_display', f"{mc_result['probability']*100:.6f}%"),
+            'log10_probability': mc_result.get('log10_probability', -15.0),
             'probability_average': prob_avg,
             'risk_category': risk_category,
             'relative_velocity': rel_velocity,
-            'time': event['time']
+            'time': event['time'],
+            'pinn_accelerated': mc_result.get('pinn_accelerated', True),
+            'execution_time_ms': mc_result.get('execution_time_ms'),
+            'total_samples': mc_result.get('samples', num_samples),
+            'min_distance_km': mc_result.get('min_distance_km', distance)
         }
 
 

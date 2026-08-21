@@ -119,63 +119,100 @@ class ImprovedCollisionProbability:
                                        sigma, sigma)
     
     def monte_carlo_with_tle_uncertainty(self, sat_position, debris_position,
-                                        combined_radius, num_samples=10000,
-                                        sat_sigma=None, debris_sigma=None):
+                                        combined_radius, num_samples=100000,
+                                        sat_sigma=None, debris_sigma=None,
+                                        sat_velocity=None, debris_velocity=None,
+                                        enable_importance_sampling=False):
         """
-        Monte Carlo with realistic TLE uncertainty
+        PINN-Accelerated Monte Carlo with realistic TLE uncertainty and Cholesky covariance sampling.
         
         Args:
             sat_position: Satellite position at TCA (km)
             debris_position: Debris position at TCA (km)
             combined_radius: Combined hard body radius (km)
-            num_samples: Number of Monte Carlo samples
+            num_samples: Number of Monte Carlo samples (N >= 10^5)
             sat_sigma: Satellite position uncertainty (km)
             debris_sigma: Debris position uncertainty (km)
+            sat_velocity: Optional satellite velocity at TCA (km/s)
+            debris_velocity: Optional debris velocity at TCA (km/s)
+            enable_importance_sampling: Toggle rare-event importance sampling
         
         Returns:
-            dict: Results with probability and statistics
+            dict: Results with probability, log10_probability, and statistics
         """
         sat_sigma = sat_sigma or self.tle_sigma
         debris_sigma = debris_sigma or self.tle_sigma
         
-        # Generate samples
-        sat_samples = np.random.normal(
-            sat_position, sat_sigma, (num_samples, 3)
-        )
-        debris_samples = np.random.normal(
-            debris_position, debris_sigma, (num_samples, 3)
-        )
-        
-        # Calculate distances
-        distances = np.linalg.norm(sat_samples - debris_samples, axis=1)
-        
-        # Count collisions
-        collisions = np.sum(distances <= combined_radius)
-        probability = collisions / num_samples
-        
-        # Calculate confidence interval (95%)
-        # Using Wilson score interval
-        z = 1.96  # 95% confidence
-        p = probability
-        n = num_samples
-        
-        if n > 0:
+        sat_vel = sat_velocity if sat_velocity is not None else np.array([0.0, 7.5, 0.0])
+        deb_vel = debris_velocity if debris_velocity is not None else np.array([7.5, 0.0, 0.0])
+
+        try:
+            from .pinn_monte_carlo import PINNMonteCarloAssessment
+            pinn_assessor = PINNMonteCarloAssessment()
+
+            cov_sat = pinn_assessor.create_6x6_covariance(sigma_pos_km=sat_sigma, sigma_vel_kms=0.001)
+            cov_deb = pinn_assessor.create_6x6_covariance(sigma_pos_km=debris_sigma, sigma_vel_kms=0.001)
+
+            res = pinn_assessor.assess_collision_pinn(
+                sat_pos_tca=np.asarray(sat_position, dtype=np.float64),
+                sat_vel_tca=np.asarray(sat_vel, dtype=np.float64),
+                deb_pos_tca=np.asarray(debris_position, dtype=np.float64),
+                deb_vel_tca=np.asarray(deb_vel, dtype=np.float64),
+                combined_radius_km=combined_radius,
+                cov_sat_6x6=cov_sat,
+                cov_deb_6x6=cov_deb,
+                num_samples=num_samples,
+                enable_importance_sampling=enable_importance_sampling
+            )
+            return {
+                'probability': res['probability'],
+                'probability_monte_carlo': res['probability'],
+                'probability_formatted': res['probability_formatted'],
+                'probability_display': res['probability_display'],
+                'log10_probability': res['log10_probability'],
+                'collisions': int(res['collision_count']),
+                'samples': num_samples,
+                'total_samples': num_samples,
+                'confidence_interval_95': res['confidence_interval_95'],
+                'mean_distance': float(res['mean_miss_distance_km']),
+                'min_distance': float(res['min_distance_km']),
+                'min_distance_km': float(res['min_distance_km']),
+                'pinn_accelerated': True,
+                'method': res['method'],
+                'execution_time_ms': res['execution_time_ms'],
+                'risk_level': res['risk_level']
+            }
+        except Exception:
+            # Fallback to NumPy normal sampling
+            sat_samples = np.random.normal(sat_position, sat_sigma, (num_samples, 3))
+            debris_samples = np.random.normal(debris_position, debris_sigma, (num_samples, 3))
+            
+            distances = np.linalg.norm(sat_samples - debris_samples, axis=1)
+            collisions = np.sum(distances <= combined_radius)
+            probability = float(collisions / num_samples)
+            
+            z = 1.96
+            p = probability
+            n = num_samples
             center = (p + z**2/(2*n)) / (1 + z**2/n)
             margin = z * np.sqrt(p*(1-p)/n + z**2/(4*n**2)) / (1 + z**2/n)
-            ci_lower = max(0, center - margin)
-            ci_upper = min(1, center + margin)
-        else:
-            ci_lower = ci_upper = 0
-        
-        return {
-            'probability': probability,
-            'collisions': int(collisions),
-            'samples': num_samples,
-            'confidence_interval_95': (ci_lower, ci_upper),
-            'mean_distance': float(np.mean(distances)),
-            'min_distance': float(np.min(distances)),
-            'std_distance': float(np.std(distances))
-        }
+            ci_lower = max(0.0, center - margin)
+            ci_upper = min(1.0, center + margin)
+            
+            return {
+                'probability': probability,
+                'probability_monte_carlo': probability,
+                'probability_formatted': f"{probability:.2e}" if probability > 0 else f"<{2.99/num_samples:.2e}",
+                'log10_probability': float(np.log10(max(1e-15, probability))) if probability > 0 else float(np.log10(3.0 / num_samples)),
+                'collisions': int(collisions),
+                'samples': num_samples,
+                'total_samples': num_samples,
+                'confidence_interval_95': (ci_lower, ci_upper),
+                'mean_distance': float(np.mean(distances)),
+                'min_distance': float(np.min(distances)),
+                'std_distance': float(np.std(distances)),
+                'pinn_accelerated': False
+            }
     
     def assess_conjunction(self, sat_position, debris_position, 
                           sat_velocity, debris_velocity,

@@ -9,6 +9,12 @@ import json
 from datetime import datetime, timedelta
 import os
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 class SpaceTrackAPI:
     """Interface to Space-Track.org for orbital debris data"""
@@ -46,14 +52,14 @@ class SpaceTrackAPI:
             
             if response.status_code == 200:
                 self.authenticated = True
-                print("✓ Authenticated with Space-Track.org")
+                print("[+] Authenticated with Space-Track.org")
                 return True
             else:
-                print(f"✗ Authentication failed: {response.status_code}")
+                print(f"[-] Authentication failed: {response.status_code}")
                 return False
                 
         except Exception as e:
-            print(f"✗ Authentication error: {e}")
+            print(f"[-] Authentication error: {e}")
             return False
     
     def search_debris(self, object_type='debris', limit=100):
@@ -79,14 +85,14 @@ class SpaceTrackAPI:
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"✓ Found {len(data)} {object_type} objects")
+                print(f"[+] Found {len(data)} {object_type} objects")
                 return data
             else:
-                print(f"✗ Query failed: {response.status_code}")
+                print(f"[-] Query failed: {response.status_code}")
                 return []
                 
         except Exception as e:
-            print(f"✗ Search error: {e}")
+            print(f"[-] Search error: {e}")
             return []
     
     def get_debris_by_id(self, norad_id):
@@ -116,7 +122,7 @@ class SpaceTrackAPI:
             return None
             
         except Exception as e:
-            print(f"✗ Error fetching debris {norad_id}: {e}")
+            print(f"[-] Error fetching debris {norad_id}: {e}")
             return None
     
     def get_high_risk_debris(self, altitude_min=200, altitude_max=2000, limit=50):
@@ -150,7 +156,7 @@ class SpaceTrackAPI:
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"✓ Fetched {len(data)} debris objects from Space-Track")
+                print(f"[+] Fetched {len(data)} debris objects from Space-Track")
                 
                 # Filter for debris with valid TLE data
                 valid_debris = []
@@ -183,13 +189,13 @@ class SpaceTrackAPI:
                             # Skip debris with malformed TLE data
                             continue
                 
-                print(f"✓ Filtered {len(valid_debris)} debris with valid TLE format")
+                print(f"[+] Filtered {len(valid_debris)} debris with valid TLE format")
                 return valid_debris
             
             return []
             
         except Exception as e:
-            print(f"✗ Error fetching high-risk debris: {e}")
+            print(f"[-] Error fetching high-risk debris: {e}")
             return []
     
     def get_recent_debris(self, days=30, limit=100):
@@ -224,13 +230,13 @@ class SpaceTrackAPI:
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"✓ Found {len(data)} objects created in last {days} days")
+                print(f"[+] Found {len(data)} objects created in last {days} days")
                 return data
             
             return []
             
         except Exception as e:
-            print(f"✗ Error fetching recent debris: {e}")
+            print(f"[-] Error fetching recent debris: {e}")
             return []
     
     def get_tle_data(self, norad_id):
@@ -288,11 +294,11 @@ class SpaceTrackAPI:
             with open(filename, 'w') as f:
                 f.write(content)
             
-            print(f"✓ Saved TLE for {obj.get('OBJECT_NAME')} to {filename}")
+            print(f"[+] Saved TLE for {obj.get('OBJECT_NAME')} to {filename}")
             return True
             
         except Exception as e:
-            print(f"✗ Error saving TLE: {e}")
+            print(f"[-] Error saving TLE: {e}")
             return False
 
 
@@ -309,7 +315,7 @@ def main():
     try:
         # Authenticate
         if not api.authenticate():
-            print("\n⚠ Set SPACETRACK_USER and SPACETRACK_PASS environment variables")
+            print("\n[!] Set SPACETRACK_USER and SPACETRACK_PASS environment variables")
             print("   Get free account at: https://www.space-track.org/auth/createAccount")
             return
         
@@ -341,11 +347,11 @@ def main():
                 print(f"  - {obj.get('OBJECT_NAME')} (Added: {obj.get('CREATION_DATE')})")
         
         print("\n" + "=" * 70)
-        print("✓ Space debris tracking complete")
+        print("[+] Space debris tracking complete")
         print("=" * 70)
         
     except Exception as e:
-        print(f"\n✗ Error: {e}")
+        print(f"\n[-] Error: {e}")
 
 
 if __name__ == "__main__":

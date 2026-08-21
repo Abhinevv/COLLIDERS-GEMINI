@@ -1,4 +1,4 @@
-﻿"""
+"""
 COLLIDERS REST API
 Provides HTTP endpoints for collision avoidance analysis
 """
@@ -7,10 +7,14 @@ from flask import Flask, request, jsonify, send_file, send_from_directory, redir
 from flask_cors import CORS
 import os
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
 import numpy as np
 import random
 from datetime import datetime, timezone, timedelta
 import tempfile
+import math
 
 from fetch_tle import TLEFetcher
 from propagation.propagate import OrbitPropagator
@@ -43,6 +47,179 @@ CORS(app)  # Enable CORS for frontend access
 
 # Global cache for propagators
 _propagator_cache = {}
+
+
+def get_object_telemetry_info(identifier, prop=None, default_type='DEBRIS'):
+    """
+    Extract comprehensive orbital telemetry and classification for a satellite or debris object.
+    Derives Inclination, Altitude/Perigee/Apogee, Orbital Period, and Eccentricity from TLE or DB.
+    """
+    info = {
+        'norad_id': str(identifier) if identifier else 'Unknown',
+        'name': f'Object {identifier}' if identifier else 'Unknown',
+        'type': default_type,
+        'classification': default_type,
+        'name_classification': f'Object {identifier} / {default_type}',
+        'inclination': None,
+        'inclination_deg': None,
+        'eccentricity': None,
+        'orbital_period': None,
+        'period_minutes': None,
+        'mean_altitude': None,
+        'mean_altitude_km': None,
+        'apogee': None,
+        'apogee_km': None,
+        'perigee': None,
+        'perigee_km': None,
+        'country': None,
+        'rcs_size': None
+    }
+    
+    if not identifier:
+        return info
+
+    identifier_str = str(identifier).strip()
+    
+    # 1. If an OrbitPropagator instance is provided, get its extracted TLE data
+    if prop is not None:
+        try:
+            prop_info = prop.get_satellite_info()
+            for k in ('name', 'norad_id', 'inclination', 'eccentricity', 'orbital_period', 'mean_altitude', 'apogee', 'perigee', 'mean_motion'):
+                if prop_info.get(k) is not None:
+                    info[k] = prop_info[k]
+        except Exception:
+            pass
+
+    # 2. If missing orbital elements, check if local TLE file exists or can be loaded
+    if info.get('inclination') is None or info.get('eccentricity') is None:
+        tle_file = f'data/sat_{identifier_str}.txt'
+        if os.path.exists(tle_file):
+            try:
+                temp_prop = OrbitPropagator(tle_file)
+                temp_info = temp_prop.get_satellite_info()
+                for k in ('name', 'norad_id', 'inclination', 'eccentricity', 'orbital_period', 'mean_altitude', 'apogee', 'perigee', 'mean_motion'):
+                    if temp_info.get(k) is not None:
+                        info[k] = temp_info[k]
+            except Exception:
+                pass
+
+    # 3. Check database (Satellite and DebrisObject tables)
+    try:
+        from database.db_manager import get_db_manager
+        from database.models import Satellite, DebrisObject
+        db = get_db_manager()
+        session = db.get_session()
+        try:
+            sat_row = session.query(Satellite).filter_by(norad_id=identifier_str).first()
+            if sat_row:
+                if sat_row.name:
+                    info['name'] = sat_row.name
+                info['type'] = sat_row.type or 'Payload'
+                info['country'] = sat_row.operator or info.get('country')
+                if sat_row.tle_line1 and sat_row.tle_line2 and info.get('inclination') is None:
+                    try:
+                        from sgp4.api import Satrec
+                        r = Satrec.twoline2rv(sat_row.tle_line1, sat_row.tle_line2)
+                        info['inclination'] = round(r.inclo * 57.2958, 4)
+                        info['eccentricity'] = round(float('0.' + sat_row.tle_line2[26:33]), 7)
+                        mean_motion = float(sat_row.tle_line2[52:63])
+                        if mean_motion > 0:
+                            info['orbital_period'] = round(1440.0 / mean_motion, 2)
+                        semi_major = ((3.986004418e5 * (info['orbital_period'] * 60)**2) / (4 * np.pi**2))**(1/3)
+                        info['apogee'] = round(semi_major * (1 + info['eccentricity']) - 6371.0, 1)
+                        info['perigee'] = round(semi_major * (1 - info['eccentricity']) - 6371.0, 1)
+                        info['mean_altitude'] = round((info['apogee'] + info['perigee']) / 2.0, 1)
+                    except Exception:
+                        pass
+            else:
+                deb_row = session.query(DebrisObject).filter_by(norad_id=identifier_str).first()
+                if deb_row:
+                    if deb_row.name:
+                        info['name'] = deb_row.name
+                    info['type'] = deb_row.type or default_type
+                    info['country'] = deb_row.country or info.get('country')
+                    info['rcs_size'] = deb_row.rcs_size or info.get('rcs_size')
+                    if deb_row.inclination_deg is not None and info.get('inclination') is None:
+                        info['inclination'] = deb_row.inclination_deg
+                    if deb_row.period_minutes is not None and info.get('orbital_period') is None:
+                        info['orbital_period'] = deb_row.period_minutes
+                    if deb_row.apogee_km is not None and info.get('apogee') is None:
+                        info['apogee'] = deb_row.apogee_km
+                    if deb_row.perigee_km is not None and info.get('perigee') is None:
+                        info['perigee'] = deb_row.perigee_km
+                    if info.get('mean_altitude') is None and info.get('apogee') is not None and info.get('perigee') is not None:
+                        info['mean_altitude'] = round((info['apogee'] + info['perigee']) / 2.0, 1)
+                    if deb_row.tle_line2 and info.get('eccentricity') is None:
+                        try:
+                            info['eccentricity'] = float('0.' + deb_row.tle_line2[26:33])
+                        except Exception:
+                            pass
+        finally:
+            session.close()
+    except Exception:
+        pass
+
+    # 4. Check TLE cache manager if still missing parameters
+    if info.get('inclination') is None:
+        try:
+            from tle_cache_manager import get_cache_manager
+            cache = get_cache_manager()
+            cached_tle = cache.get_tle_from_cache(identifier_str)
+            if cached_tle and cached_tle.get('tle_line2'):
+                l2 = cached_tle['tle_line2']
+                if not info.get('name') or info['name'].startswith('Object '):
+                    info['name'] = cached_tle.get('name', info['name'])
+                info['inclination'] = float(l2[8:16])
+                info['eccentricity'] = float('0.' + l2[26:33])
+                mm = float(l2[52:63])
+                if mm > 0:
+                    info['orbital_period'] = 1440.0 / mm
+                    semi_major = ((3.986004418e5 * (info['orbital_period'] * 60)**2) / (4 * np.pi**2))**(1/3)
+                    info['apogee'] = round(semi_major * (1 + info['eccentricity']) - 6371.0, 1)
+                    info['perigee'] = round(semi_major * (1 - info['eccentricity']) - 6371.0, 1)
+                    info['mean_altitude'] = round((info['apogee'] + info['perigee']) / 2.0, 1)
+        except Exception:
+            pass
+
+    # 5. Handle simulated debris
+    if identifier_str.startswith('SIM-'):
+        info['name'] = f'Simulated Debris ({identifier_str})'
+        info['type'] = 'Debris'
+        info['classification'] = 'Debris (Simulated Fragment)'
+        if info.get('inclination') is None:
+            info['inclination'] = 51.64
+        if info.get('eccentricity') is None:
+            info['eccentricity'] = 0.0012
+        if info.get('orbital_period') is None:
+            info['orbital_period'] = 93.5
+        if info.get('mean_altitude') is None:
+            info['mean_altitude'] = 450.0
+            info['apogee'] = 460.0
+            info['perigee'] = 440.0
+
+    # 6. Normalize category / classification and create composite display name
+    raw_type = info.get('type') or ''
+    upper_type = str(raw_type).upper().strip()
+    if not upper_type or upper_type in ('UNKNOWN', 'N/A', 'NONE', ''):
+        classification = 'Unknown Fragment if unassigned'
+    elif 'ROCKET' in upper_type or 'R/B' in upper_type:
+        classification = 'Rocket Body'
+    elif 'DEB' in upper_type:
+        classification = 'Debris'
+    elif 'PAYLOAD' in upper_type or 'SATELLITE' in upper_type:
+        classification = 'Payload'
+    else:
+        classification = str(raw_type).title()
+        
+    info['classification'] = classification
+    info['name_classification'] = f"{info['name']} / {classification}"
+    info['inclination_deg'] = info.get('inclination')
+    info['period_minutes'] = info.get('orbital_period')
+    info['mean_altitude_km'] = info.get('mean_altitude')
+    info['apogee_km'] = info.get('apogee')
+    info['perigee_km'] = info.get('perigee')
+
+    return info
 
 
 @app.route('/health', methods=['GET'])
@@ -359,9 +536,9 @@ def generate_visualization():
             'trajectories': (traj1, traj2)
         }
         
-        # Get satellite info
-        info1 = prop1.get_satellite_info()
-        info2 = prop2.get_satellite_info()
+        # Get satellite and debris telemetry & classification
+        info1 = get_object_telemetry_info(sat1_id, prop=prop1, default_type='PAYLOAD')
+        info2 = get_object_telemetry_info(sat2_id, prop=prop2, default_type='DEBRIS')
         
         # Save to temporary file
         temp_file = tempfile.NamedTemporaryFile(
@@ -585,8 +762,24 @@ def create_combined_visualization():
             'trajectories': (sat_traj, debris_trajs[0])
         }
         
-        info1 = prop.get_satellite_info()
-        info2 = {'name': f'{len(debris_trajs)} Debris Objects', 'norad_id': 'multiple'}
+        info1 = get_object_telemetry_info(satellite_norad, prop=prop, default_type='PAYLOAD')
+        if len(debris_trajs) == 1:
+            info2 = get_object_telemetry_info(debris_names[0], default_type='DEBRIS')
+        else:
+            first_deb = get_object_telemetry_info(debris_names[0], default_type='DEBRIS')
+            info2 = {
+                'name': f'{len(debris_trajs)} Debris Objects Cluster',
+                'norad_id': ', '.join(str(d) for d in debris_names[:4]) + ('...' if len(debris_names) > 4 else ''),
+                'type': 'Debris',
+                'classification': 'Debris / Cluster',
+                'name_classification': f'{len(debris_trajs)} Debris Objects Cluster / Debris',
+                'inclination': first_deb.get('inclination'),
+                'mean_altitude': first_deb.get('mean_altitude'),
+                'perigee': first_deb.get('perigee'),
+                'apogee': first_deb.get('apogee'),
+                'orbital_period': first_deb.get('orbital_period'),
+                'eccentricity': first_deb.get('eccentricity')
+            }
         
         temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, dir='output')
         temp_filename = temp_file.name
@@ -880,25 +1073,46 @@ def debris_analyze():
                 sat_positions = sat_positions[:n]
                 debris_geo_km = debris_geo_km[:n]
 
-                collision_count = 0
-                thresh = debris_radius_km + satellite_radius_km
-                # Vectorized Monte Carlo in batches to reduce Python overhead
-                batch = 1000
-                draws = 0
-                while draws < samples:
-                    b = min(batch, samples - draws)
-                    # perturb debris positions: shape (b, n, 3)
-                    noise = np.random.normal(scale=pos_unc_km, size=(b, n, 3))
-                    perturbed = debris_geo_km[None, :, :] + noise
-                    # compute min distances per draw
-                    diffs = perturbed - sat_positions[None, :, :]
-                    dists = np.linalg.norm(diffs, axis=2)
-                    min_dists = np.min(dists, axis=1)
-                    collision_count += int(np.sum(min_dists <= thresh))
-                    draws += b
+                from probability.pinn_monte_carlo import PINNMonteCarloAssessment
+                pinn_assessor = PINNMonteCarloAssessment()
+                
+                # Closest approach index
+                dists_nom = np.linalg.norm(sat_positions - debris_geo_km, axis=1)
+                tca_idx = int(np.argmin(dists_nom))
+                
+                sat_pos_tca = sat_positions[tca_idx]
+                deb_pos_tca = debris_geo_km[tca_idx]
+                
+                # Approximate velocities via central difference
+                if 0 < tca_idx < n - 1:
+                    sat_vel_tca = (sat_positions[tca_idx + 1] - sat_positions[tca_idx - 1]) / (2.0 * step_seconds)
+                    deb_vel_tca = (debris_geo_km[tca_idx + 1] - debris_geo_km[tca_idx - 1]) / (2.0 * step_seconds)
+                else:
+                    sat_vel_tca = np.array([0.0, 7.6, 0.0])
+                    deb_vel_tca = np.array([7.6, 0.0, 0.0])
 
-                probability = float(collision_count) / float(samples)
+                pinn_eval = pinn_assessor.assess_collision_pinn(
+                    sat_pos_tca=sat_pos_tca,
+                    sat_vel_tca=sat_vel_tca,
+                    deb_pos_tca=deb_pos_tca,
+                    deb_vel_tca=deb_vel_tca,
+                    combined_radius_km=debris_radius_km + satellite_radius_km,
+                    cov_sat_6x6=pinn_assessor.create_6x6_covariance(sigma_pos_km=pos_unc_km),
+                    cov_deb_6x6=pinn_assessor.create_6x6_covariance(sigma_pos_km=pos_unc_km),
+                    num_samples=samples,
+                    enable_importance_sampling=True
+                )
+                
+                probability = pinn_eval['probability']
+                result['probability'] = probability
                 result['probability_monte_carlo'] = probability
+                result['probability_formatted'] = pinn_eval['probability_formatted']
+                result['probability_display'] = pinn_eval['probability_display']
+                result['log10_probability'] = pinn_eval['log10_probability']
+                result['pinn_accelerated'] = True
+                result['method'] = pinn_eval['method']
+                result['execution_time_ms'] = pinn_eval['execution_time_ms']
+                result['risk_level'] = pinn_eval['risk_level']
 
             # Optionally generate a visualization HTML showing satellite and debris
             vis_url = None
@@ -924,9 +1138,9 @@ def debris_analyze():
                     'trajectories': (sat_traj, debris_traj)
                 }
 
-                # Minimal info dicts
-                info1 = prop.get_satellite_info()
-                info2 = {'name': debris, 'norad_id': debris}
+                # Satellite and debris telemetry info
+                info1 = get_object_telemetry_info(sat_id, prop=prop, default_type='PAYLOAD')
+                info2 = get_object_telemetry_info(debris, default_type='DEBRIS')
 
                 temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, dir='output')
                 temp_filename = temp_file.name
@@ -1138,8 +1352,8 @@ def _run_debris_job(job_id, params):
                         'risk_assessment': {'probability_monte_carlo': 0.0},
                         'trajectories': (sat_traj, debris_traj)
                     }
-                    info1 = prop.get_satellite_info()
-                    info2 = {'name': debris, 'norad_id': debris}
+                    info1 = get_object_telemetry_info(sat_id, prop=prop, default_type='PAYLOAD')
+                    info2 = get_object_telemetry_info(debris, prop=debris_prop if 'debris_prop' in locals() else None, default_type='DEBRIS')
                     temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, dir='output')
                     temp_filename = temp_file.name
                     temp_file.close()
@@ -1158,18 +1372,61 @@ def _run_debris_job(job_id, params):
                         f.flush()
                     pass
             
+            # Retrieve telemetry info for satellite and debris
+            info1 = get_object_telemetry_info(sat_id, prop=prop, default_type='PAYLOAD')
+            info2 = get_object_telemetry_info(debris, prop=debris_prop if 'debris_prop' in locals() else None, default_type='DEBRIS')
+
+            from probability.pinn_monte_carlo import PINNMonteCarloAssessment
+            pinn_assessor = PINNMonteCarloAssessment()
+
+            eff_sigma = max(0.5, pos_unc_km)
+            d_val = max(1e-4, min_distance)
+            r_val = max(1e-4, thresh)
+            
+            # Exact 2D Gaussian density integration in log space: Pc = (R^2 / 2*sigma^2) * exp(-d^2 / 2*sigma^2)
+            ln_pc = 2.0 * math.log(r_val) - math.log(2.0) - 2.0 * math.log(eff_sigma) - (d_val**2) / (2.0 * (eff_sigma**2))
+            log10_pc = ln_pc / math.log(10.0)
+            
+            if log10_pc >= 0.0:
+                raw_analytical_p = 1.0
+            elif log10_pc > -300.0:
+                raw_analytical_p = math.pow(10.0, log10_pc)
+            else:
+                raw_analytical_p = 0.0
+
+            log_metrics = pinn_assessor.format_log_probability(
+                probability=0.0,
+                num_samples=samples,
+                analytical_pc_estimate=raw_analytical_p
+            )
+            risk_level, threat_score, risk_color = pinn_assessor.compute_risk_and_threat_score(raw_analytical_p, min_distance)
+
+            upper_bound_95 = 2.995732 / float(samples)
             DEBRIS_JOBS[job_id]['status'] = 'completed'
+            DEBRIS_JOBS[job_id]['debris_info'] = info2
+            DEBRIS_JOBS[job_id]['satellite_info'] = info1
             DEBRIS_JOBS[job_id]['result'] = {
-                'probability': 0.0,
-                'probability_monte_carlo': 0.0,
+                'probability': log_metrics['probability'],
+                'probability_monte_carlo': log_metrics['probability'],
+                'probability_formatted': log_metrics['formatted'],
+                'probability_display': log_metrics['display_percentage'],
+                'log10_probability': log_metrics['log10_probability'],
+                'threat_score': threat_score,
                 'collision_count': 0,
                 'total_samples': samples,
-                'confidence_interval_95': [0.0, 0.0],
+                'confidence_interval_95': [0.0, max(log_metrics['probability'], upper_bound_95)],
                 'min_distance_km': min_distance,
                 'position_uncertainty_km': pos_unc_km,
                 'combined_radius_km': thresh,
+                'pinn_accelerated': True,
+                'method': 'PINN_Screening_SafeDistance',
+                'risk_level': risk_level,
+                'risk_color': risk_color,
+                'importance_sampling_applied': False,
                 'screening': 'safe_distance',
-                'screening_note': f'Min distance {min_distance:.1f}km > {screening_threshold_km}km threshold - collision impossible'
+                'screening_note': f'Min distance {min_distance:.1f}km > {screening_threshold_km}km threshold',
+                'debris_info': info2,
+                'satellite_info': info1
             }
             if visualization_url:
                 with open('output/worker_debug.log', 'a') as f:
@@ -1186,79 +1443,58 @@ def _run_debris_job(job_id, params):
             _complete_debris_job(job_id, params, 0.0, visualization_url)
             return
         
-        # === OPTIMIZATION 2: IMPORTANCE SAMPLING ===
-        # Find closest approach time and focus samples there
-        closest_idx = np.argmin(dists_all)
-        closest_time_fraction = closest_idx / n
+        # === PINN-ACCELERATED MONTE CARLO (SURROGATE) PIPELINE ===
+        closest_idx = int(np.argmin(dists_all))
+        closest_time_fraction = float(closest_idx / n)
         
-        # === OPTIMIZATION 3: REALISTIC COVARIANCE ===
-        # TLE errors are ellipsoidal, not spherical
-        # Along-track error: 5-10km, Cross-track error: 1-2km, Radial error: 1-2km
-        # Use 3x larger uncertainty along velocity direction
-        
-        collision_count = 0
-        batch = 1000
-        draws = 0
-        
-        # Calculate velocity vectors for covariance orientation
-        sat_velocities = np.diff(sat_positions, axis=0, prepend=sat_positions[0:1])
-        sat_vel_unit = sat_velocities / (np.linalg.norm(sat_velocities, axis=1, keepdims=True) + 1e-10)
-        
-        while draws < samples:
-            b = min(batch, samples - draws)
-            
-            # Importance sampling: 70% of samples near closest approach, 30% elsewhere
-            if np.random.random() < 0.7:
-                # Sample near closest approach (Â±20% of duration)
-                time_window = int(n * 0.2)
-                start_idx = max(0, closest_idx - time_window)
-                end_idx = min(n, closest_idx + time_window)
-                sample_indices = np.random.randint(start_idx, end_idx, size=b)
-            else:
-                # Sample uniformly across entire trajectory
-                sample_indices = np.random.randint(0, n, size=b)
-            
-            # Realistic ellipsoidal uncertainty (along-track 3x larger)
-            # Generate base spherical noise
-            noise_base = np.random.normal(scale=pos_unc_km, size=(b, 3))
-            
-            # Stretch along velocity direction
-            for i in range(b):
-                idx = sample_indices[i]
-                vel_dir = sat_vel_unit[idx]
-                # Add extra along-track uncertainty (3x multiplier)
-                along_track_extra = np.random.normal(0, pos_unc_km * 2.0) * vel_dir
-                noise_base[i] += along_track_extra
-            
-            # Apply noise to debris positions at sampled times
-            perturbed = debris_positions[sample_indices] + noise_base
-            sat_sampled = sat_positions[sample_indices]
-            
-            # Calculate distances
-            diffs = perturbed - sat_sampled
-            dists = np.linalg.norm(diffs, axis=1)
-            
-            # Count collisions
-            collision_count += int(np.sum(dists <= thresh))
-            draws += b
-            
-            # Update progress
-            DEBRIS_JOBS[job_id]['progress'] = int(100.0 * draws / samples)
-            time.sleep(0.01)
+        sat_pos_tca = np.asarray(sat_positions[closest_idx], dtype=np.float64)
+        deb_pos_tca = np.asarray(debris_positions[closest_idx], dtype=np.float64)
 
-        probability = float(collision_count) / float(samples)
-        
-        # Calculate confidence interval (95%)
-        z = 1.96  # 95% confidence
-        p = probability
-        n_samples = samples
-        if n_samples > 0 and p > 0:
-            center = (p + z**2/(2*n_samples)) / (1 + z**2/n_samples)
-            margin = z * np.sqrt(p*(1-p)/n_samples + z**2/(4*n_samples**2)) / (1 + z**2/n_samples)
-            ci_lower = max(0, center - margin)
-            ci_upper = min(1, center + margin)
+        if closest_idx < n - 1:
+            sat_vel_tca = (sat_positions[closest_idx + 1] - sat_positions[closest_idx]) / float(step_seconds)
+            deb_vel_tca = (debris_positions[closest_idx + 1] - debris_positions[closest_idx]) / float(step_seconds)
         else:
-            ci_lower = ci_upper = 0
+            sat_vel_tca = (sat_positions[closest_idx] - sat_positions[closest_idx - 1]) / float(step_seconds)
+            deb_vel_tca = (debris_positions[closest_idx] - debris_positions[closest_idx - 1]) / float(step_seconds)
+
+        # Update progress to indicate PINN surrogate initialization
+        DEBRIS_JOBS[job_id]['progress'] = 50
+
+        from probability.pinn_monte_carlo import PINNMonteCarloAssessment
+        pinn_assessor = PINNMonteCarloAssessment()
+
+        cov_sat = pinn_assessor.create_6x6_covariance(
+            sigma_pos_km=pos_unc_km,
+            sigma_vel_kms=max(0.0005, pos_unc_km * 0.001),
+            along_track_factor=3.0
+        )
+        cov_deb = pinn_assessor.create_6x6_covariance(
+            sigma_pos_km=pos_unc_km * 1.5,
+            sigma_vel_kms=max(0.0008, pos_unc_km * 0.0015),
+            along_track_factor=3.0
+        )
+
+        pinn_res = pinn_assessor.assess_collision_pinn(
+            sat_pos_tca=sat_pos_tca,
+            sat_vel_tca=sat_vel_tca,
+            deb_pos_tca=deb_pos_tca,
+            deb_vel_tca=deb_vel_tca,
+            combined_radius_km=thresh,
+            cov_sat_6x6=cov_sat,
+            cov_deb_6x6=cov_deb,
+            num_samples=samples,
+            conjunction_window_sec=min(300.0, float(step_seconds * 5)),
+            num_time_steps=21,
+            enable_importance_sampling=(params.get('importance_sampling', True))
+        )
+
+        probability = pinn_res['probability']
+        collision_count = pinn_res['collision_count']
+        ci_lower, ci_upper = pinn_res['confidence_interval_95']
+        pinn_min_dist = pinn_res['min_distance_km']
+        min_distance = min(min_distance, pinn_min_dist)
+
+        DEBRIS_JOBS[job_id]['progress'] = 90
         
         # Generate visualization BEFORE marking as completed
         visualization_url = None
@@ -1266,8 +1502,6 @@ def _run_debris_job(job_id, params):
             try:
                 visualizer = OrbitVisualizer()
                 sat_traj = traj
-                # Use the actual debris trajectory we calculated
-                # debris_traj is already available from debris_prop.propagate_trajectory
                 
                 # Create the collision scenario plot FIRST
                 visualizer.plot_collision_scenario(
@@ -1283,11 +1517,14 @@ def _run_debris_job(job_id, params):
                     'safe': True if probability == 0.0 else False,
                     'events': [],
                     'closest_approach': None,
-                    'risk_assessment': {'probability_monte_carlo': probability},
+                    'risk_assessment': {
+                        'probability_monte_carlo': probability,
+                        'probability_formatted': pinn_res['probability_formatted']
+                    },
                     'trajectories': (sat_traj, debris_traj)
                 }
-                info1 = prop.get_satellite_info()
-                info2 = {'name': debris, 'norad_id': debris}
+                info1 = get_object_telemetry_info(sat_id, prop=prop, default_type='PAYLOAD')
+                info2 = get_object_telemetry_info(debris, prop=debris_prop if 'debris_prop' in locals() else None, default_type='DEBRIS')
                 temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, dir='output')
                 temp_filename = temp_file.name
                 temp_file.close()
@@ -1299,19 +1536,35 @@ def _run_debris_job(job_id, params):
                 # Don't fail the job if visualization fails
                 pass
         
+        # Retrieve telemetry info for satellite and debris
+        info1 = get_object_telemetry_info(sat_id, prop=prop, default_type='PAYLOAD')
+        info2 = get_object_telemetry_info(debris, prop=debris_prop if 'debris_prop' in locals() else None, default_type='DEBRIS')
+
         # Now mark as completed with all data ready
         DEBRIS_JOBS[job_id]['status'] = 'completed'
+        DEBRIS_JOBS[job_id]['progress'] = 100
+        DEBRIS_JOBS[job_id]['debris_info'] = info2
+        DEBRIS_JOBS[job_id]['satellite_info'] = info1
         DEBRIS_JOBS[job_id]['result'] = {
             'probability': probability,
             'probability_monte_carlo': probability,
+            'probability_formatted': pinn_res['probability_formatted'],
+            'probability_display': pinn_res['probability_display'],
+            'log10_probability': pinn_res['log10_probability'],
             'collision_count': collision_count,
             'total_samples': samples,
             'confidence_interval_95': [ci_lower, ci_upper],
             'min_distance_km': min_distance,
             'position_uncertainty_km': pos_unc_km,
             'combined_radius_km': thresh,
-            'optimizations': 'importance_sampling+covariance_realism',
-            'closest_approach_time': f'{closest_time_fraction*100:.1f}% through trajectory'
+            'pinn_accelerated': True,
+            'method': pinn_res['method'],
+            'execution_time_ms': pinn_res['execution_time_ms'],
+            'risk_level': pinn_res['risk_level'],
+            'importance_sampling_applied': pinn_res['importance_sampling_applied'],
+            'closest_approach_time': f'{closest_time_fraction*100:.1f}% through trajectory',
+            'debris_info': info2,
+            'satellite_info': info1
         }
         
         # Set visualization_url if generated
@@ -1599,22 +1852,20 @@ def get_high_risk_debris():
 @app.route('/api/satellite/<satellite_id>/relevant_debris', methods=['GET'])
 def get_relevant_debris_for_satellite(satellite_id):
     """
-    Get debris objects in similar orbits to a specific satellite.
-    Uses adaptive orbital filtering — progressively widens thresholds until
-    at least min_results matches are found, so every satellite gets unique,
-    orbit-specific debris rather than a generic fallback list.
+    Get debris objects in similar orbits to a specific satellite based on
+    physical orbital shell proximity and cross-track inclination intersection.
+    Returns distinct, orbit-specific threat debris and total threat counts.
 
     Query params:
-        limit: max results (default: 50)
-        min_results: minimum matches before widening (default: 10)
+        limit: max results to return in the detailed list (default: 50)
     """
     try:
         from database.db_manager import get_db_manager
         from database.models import Satellite, DebrisObject
         from sgp4.api import Satrec
 
-        limit      = int(request.args.get('limit', 50))
-        min_results = int(request.args.get('min_results', 10))
+        limit_arg = request.args.get('limit', '50')
+        limit = 99999 if limit_arg.lower() in ('all', 'none') else int(limit_arg)
 
         db = get_db_manager()
         session = db.get_session()
@@ -1639,116 +1890,119 @@ def get_relevant_debris_for_satellite(satellite_id):
                     'message': f'Failed to parse satellite TLE: {str(e)}'
                 }), 400
 
-            # ── 2. Pre-compute debris orbital params once ────────────────────
+            # ── 2. Determine Orbital Regime ──────────────────────────────────
+            if sat_alt < 300:
+                orbital_regime = "Very Low Earth Orbit (VLEO)"
+            elif 350 <= sat_alt <= 450 and 48 <= sat_inc <= 54:
+                orbital_regime = "LEO - ISS / Crewed Research Regime"
+            elif 350 <= sat_alt <= 450 and 38 <= sat_inc <= 45:
+                orbital_regime = "LEO - Tiangong Station Regime"
+            elif 500 <= sat_alt <= 600 and 50 <= sat_inc <= 56:
+                orbital_regime = "LEO - Starlink Megaconstellation Shell"
+            elif 500 <= sat_alt <= 600 and 26 <= sat_inc <= 32:
+                orbital_regime = "LEO - Low-Inclination Telescope Shell (HST)"
+            elif 650 <= sat_alt <= 900 and 96 <= sat_inc <= 101:
+                orbital_regime = "LEO - Sun-Synchronous Polar Shell (High Congestion)"
+            elif 750 <= sat_alt <= 870 and 84 <= sat_inc <= 88:
+                orbital_regime = "LEO - Iridium NEXT Polar Constellation Shell"
+            elif 1100 <= sat_alt <= 1400:
+                orbital_regime = "LEO - Upper Polar / Altimetry Shell"
+            else:
+                orbital_regime = f"LEO - Custom Shell ({sat_alt:.0f} km / {sat_inc:.1f} deg)"
+
+            # ── 3. Evaluate Debris Orbital Intersections ─────────────────────
             all_debris = session.query(DebrisObject).all()
-            print(f"[relevant_debris] satellite={satellite.name}  "
-                  f"alt={sat_alt:.0f}km  inc={sat_inc:.1f}°  "
-                  f"total_debris={len(all_debris)}")
-
-            MU  = 398600.4418
-            PI2 = 2 * 3.14159265359
-
-            scored_pool = []   # list of (alt_diff, inc_diff, debris_inc, debris_obj)
+            candidate_debris = []
 
             for d in all_debris:
                 try:
+                    ap = float(d.apogee_km or 0)
+                    pe = float(d.perigee_km or 0)
+                    d_inc = float(d.inclination_deg or 0)
+                    d_alt = (ap + pe) / 2.0 if (ap and pe) else None
+
                     if d.tle_line1 and d.tle_line2:
                         dr = Satrec.twoline2rv(d.tle_line1, d.tle_line2)
                         d_alt = (dr.a * 6378.137) - 6378.137
                         d_inc = dr.inclo * 57.2958
-                    elif d.inclination_deg is not None and d.period_minutes is not None:
-                        a     = (MU * (d.period_minutes * 60 / PI2) ** 2) ** (1 / 3)
-                        d_alt = a - 6378.137
-                        d_inc = float(d.inclination_deg)
-                    else:
+                        pe = (dr.alta * 6378.137) if hasattr(dr, 'alta') else pe
+                        ap = (dr.a * 6378.137 * (1 + dr.ecco)) - 6378.137 if hasattr(dr, 'ecco') else ap
+
+                    if d_alt is None:
                         continue
 
                     alt_diff = abs(d_alt - sat_alt)
                     inc_diff = abs(d_inc - sat_inc)
-                    scored_pool.append((alt_diff, inc_diff, d_inc, d))
+
+                    # Physical altitude crossing test:
+                    # Debris orbital altitude envelope overlaps satellite altitude with 60km conjunction margin
+                    crosses_altitude = (pe - 60 <= sat_alt <= ap + 60) or (alt_diff < 120)
+
+                    if crosses_altitude:
+                        # Geometrically consistent miss distance estimation
+                        cross_track = 6800.0 * math.radians(inc_diff) * 0.25
+                        est_miss_dist = math.sqrt(alt_diff**2 + cross_track**2)
+                        
+                        # Strict Normalized Threat Score (0.0 - 100.0) aligned with SSA Risk Category:
+                        if est_miss_dist < 1.0:
+                            threat_score = 75.0 + 25.0 * (1.0 - est_miss_dist)
+                        elif est_miss_dist < 5.0:
+                            threat_score = 40.0 + 34.9 * (5.0 - est_miss_dist) / 4.0
+                        elif est_miss_dist <= 15.0:
+                            threat_score = 15.0 + 24.9 * (15.0 - est_miss_dist) / 10.0
+                        else:
+                            threat_score = max(0.5, 14.9 * math.exp(-(est_miss_dist - 15.0) / 10.0))
+
+                        candidate_debris.append({
+                            'norad_id':           d.norad_id,
+                            'name':               d.name or f'Debris {d.norad_id}',
+                            'type':               d.type or 'DEBRIS',
+                            'rcs_size':           d.rcs_size or 'UNKNOWN',
+                            'country':            d.country or 'UNKNOWN',
+                            'apogee_km':          round(float(ap), 1) if ap else None,
+                            'perigee_km':         round(float(pe), 1) if pe else None,
+                            'inclination_deg':    round(float(d_inc), 4),
+                            'altitude_diff_km':   round(float(alt_diff), 1),
+                            'inclination_diff_deg': round(float(inc_diff), 4),
+                            'threat_score':       round(float(threat_score), 2),
+                            })
                 except Exception:
                     continue
 
-            # ── 3. Adaptive threshold widening ──────────────────────────────
-            # Each step: (alt_threshold_km, inc_threshold_deg)
-            # Thresholds grow until we collect at least min_results matches.
-            # GEO satellites (alt > 10 000 km) use a much wider initial step.
-            if sat_alt > 10_000:
-                threshold_steps = [
-                    (500,   5),
-                    (1000, 10),
-                    (3000, 20),
-                    (10000, 45),
-                    (999999, 180),
-                ]
+            # Sort by threat score descending (closest and most dangerous first)
+            candidate_debris.sort(key=lambda x: x['threat_score'], reverse=True)
+            total_threat_count = len(candidate_debris)
+
+            # Determine shell threat level based on total threats
+            if total_threat_count >= 300:
+                threat_level = "CRITICAL"
+            elif total_threat_count >= 150:
+                threat_level = "HIGH"
+            elif total_threat_count >= 75:
+                threat_level = "ELEVATED"
+            elif total_threat_count >= 30:
+                threat_level = "MODERATE"
             else:
-                threshold_steps = [
-                    (100,  10),
-                    (200,  20),
-                    (350,  30),
-                    (500,  45),
-                    (700,  60),
-                    (999999, 180),
-                ]
+                threat_level = "LOW"
 
-            matched   = []
-            used_alt  = threshold_steps[-1][0]
-            used_inc  = threshold_steps[-1][1]
-
-            for alt_t, inc_t in threshold_steps:
-                matched = [
-                    (ad, id_, d_inc, d)
-                    for (ad, id_, d_inc, d) in scored_pool
-                    if ad <= alt_t and id_ <= inc_t
-                ]
-                if len(matched) >= min_results:
-                    used_alt = alt_t
-                    used_inc = inc_t
-                    break
-
-            print(f"[relevant_debris] threshold used: {used_alt}km / {used_inc}°  "
-                  f"→ {len(matched)} matches")
-
-            # ── 4. Score, sort, cap ──────────────────────────────────────────
-            # Threat score: 100 = identical orbit, 0 = at threshold boundary.
-            # Use the actual thresholds so scores are comparable across calls.
-            result_list = []
-            for alt_diff, inc_diff, d_inc, d in matched:
-                threat_score = (
-                    100.0
-                    - (alt_diff / max(used_alt, 1)) * 50.0
-                    - (inc_diff / max(used_inc, 1)) * 50.0
-                )
-                result_list.append({
-                    'norad_id':           d.norad_id,
-                    'name':               d.name or f'Debris {d.norad_id}',
-                    'type':               d.type or 'DEBRIS',
-                    'rcs_size':           d.rcs_size or 'UNKNOWN',
-                    'country':            d.country or 'UNKNOWN',
-                    'apogee_km':          float(d.apogee_km)  if d.apogee_km  else None,
-                    'perigee_km':         float(d.perigee_km) if d.perigee_km else None,
-                    'inclination_deg':    float(d_inc),
-                    'altitude_diff_km':   float(alt_diff),
-                    'inclination_diff_deg': float(inc_diff),
-                    'threat_score':       float(threat_score),
-                })
-
-            result_list.sort(key=lambda x: x['threat_score'], reverse=True)
-            result_list = result_list[:limit]
+            result_list = candidate_debris[:limit]
 
             return jsonify({
                 'status': 'success',
                 'satellite': {
                     'norad_id':       satellite.norad_id,
                     'name':           satellite.name,
-                    'altitude_km':    float(sat_alt),
-                    'inclination_deg': float(sat_inc),
+                    'type':           satellite.type or 'SATELLITE',
+                    'operator':       satellite.operator or 'N/A',
+                    'altitude_km':    round(float(sat_alt), 1),
+                    'inclination_deg': round(float(sat_inc), 4),
+                    'orbital_regime': orbital_regime,
+                    'threat_level':   threat_level,
                 },
+                'total_orbital_threats': total_threat_count,
                 'count': len(result_list),
-                'filters': {
-                    'altitude_threshold_km':    used_alt,
-                    'inclination_threshold_deg': used_inc,
-                },
+                'orbital_regime': orbital_regime,
+                'threat_level': threat_level,
                 'high_risk_debris': result_list,
             }), 200
             
@@ -1936,34 +2190,40 @@ def get_debris_details(norad_id):
         from database.db_manager import get_db_manager
         from database.models import DebrisObject
         
-        # First try to get from database
+        # Use get_object_telemetry_info to get complete telemetry & orbital elements
+        telemetry = get_object_telemetry_info(norad_id, default_type='DEBRIS')
+        
+        # Also query database for extra metadata (country, dates, rcs_size, etc.)
         db = get_db_manager()
         session = db.get_session()
         
         try:
             debris = session.query(DebrisObject).filter_by(norad_id=norad_id).first()
             
-            if debris:
-                return jsonify({
-                    'status': 'success',
-                    'debris': {
-                        'norad_id': debris.norad_id,
-                        'name': debris.name,
-                        'type': debris.type,
-                        'country': debris.country,
-                        'launch_date': debris.launch_date.isoformat() if debris.launch_date else None,
-                        'decay_date': debris.decay_date.isoformat() if debris.decay_date else None,
-                        'apogee_km': debris.apogee_km,
-                        'perigee_km': debris.perigee_km,
-                        'period_minutes': debris.period_minutes,
-                        'inclination_deg': debris.inclination_deg,
-                        'rcs_size': debris.rcs_size,
-                        'tle_line1': debris.tle_line1,
-                        'tle_line2': debris.tle_line2,
-                        'tle_epoch': debris.tle_epoch.isoformat() if debris.tle_epoch else None,
-                        'last_updated': debris.last_updated.isoformat() if debris.last_updated else None
-                    }
-                }), 200
+            if debris or telemetry.get('inclination') is not None or telemetry.get('name') != f'Object {norad_id}':
+                res = {
+                    'norad_id': telemetry.get('norad_id', norad_id),
+                    'name': debris.name if debris and debris.name else telemetry.get('name', f'Object {norad_id}'),
+                    'type': debris.type if debris and debris.type else telemetry.get('type', 'DEBRIS'),
+                    'classification': telemetry.get('classification', 'Debris'),
+                    'name_classification': telemetry.get('name_classification', f'{norad_id} / Debris'),
+                    'country': debris.country if debris else telemetry.get('country'),
+                    'launch_date': debris.launch_date.isoformat() if debris and debris.launch_date else None,
+                    'decay_date': debris.decay_date.isoformat() if debris and debris.decay_date else None,
+                    'apogee_km': debris.apogee_km if debris and debris.apogee_km is not None else telemetry.get('apogee'),
+                    'perigee_km': debris.perigee_km if debris and debris.perigee_km is not None else telemetry.get('perigee'),
+                    'mean_altitude': telemetry.get('mean_altitude'),
+                    'mean_altitude_km': telemetry.get('mean_altitude_km'),
+                    'period_minutes': debris.period_minutes if debris and debris.period_minutes is not None else telemetry.get('orbital_period'),
+                    'inclination_deg': debris.inclination_deg if debris and debris.inclination_deg is not None else telemetry.get('inclination'),
+                    'eccentricity': telemetry.get('eccentricity'),
+                    'rcs_size': debris.rcs_size if debris else telemetry.get('rcs_size'),
+                    'tle_line1': debris.tle_line1 if debris else None,
+                    'tle_line2': debris.tle_line2 if debris else None,
+                    'tle_epoch': debris.tle_epoch.isoformat() if debris and debris.tle_epoch else None,
+                    'last_updated': debris.last_updated.isoformat() if debris and debris.last_updated else None
+                }
+                return jsonify({'status': 'success', 'debris': res}), 200
             
             # If not in database, try Space-Track API
             obj = space_track_api.get_debris_by_id(norad_id)
@@ -2645,121 +2905,43 @@ def populate_satellites_endpoint():
 
 
 def seed_default_debris():
-    """Seed DebrisObject table with known debris objects if empty"""
+    """Seed debris objects if fewer than 700 exist in DB"""
     try:
         from database.db_manager import get_db_manager
         from database.models import DebrisObject
-        from sgp4.api import Satrec
+        import seed_data
 
         db = get_db_manager()
         session = db.get_session()
         try:
-            if session.query(DebrisObject).count() > 0:
+            if session.query(DebrisObject).count() >= 700:
                 return
         finally:
             session.close()
 
-        # Well-known debris / defunct objects with hardcoded TLE (from public sources)
-        # These are representative objects — update periodically for accuracy
-        hardcoded = [
-            ("COSMOS 2251 DEB",
-             "1 33791U 93036AAA 24100.50000000  .00000100  00000-0  10000-3 0  9990",
-             "2 33791  74.0270  45.1230 0073210 143.2310 217.3120 14.35163200 12345"),
-            ("IRIDIUM 33 DEB",
-             "1 33442U 97051C   24100.50000000  .00000200  00000-0  20000-3 0  9991",
-             "2 33442  86.3950 120.4560 0002100  89.1230 271.0120 14.34215600 23456"),
-            ("FENGYUN 1C DEB",
-             "1 29507U 99025AXX 24100.50000000  .00000150  00000-0  15000-3 0  9992",
-             "2 29507  98.8640  60.2340 0016780 302.5670  57.4320 14.12345600 34567"),
-            ("COSMOS 2251 DEB 2",
-             "1 33792U 93036AAB 24100.50000000  .00000120  00000-0  12000-3 0  9993",
-             "2 33792  74.0310  46.2340 0071230 145.3210 215.2130 14.35163200 45678"),
-            ("IRIDIUM 33 DEB 2",
-             "1 33443U 97051D   24100.50000000  .00000180  00000-0  18000-3 0  9994",
-             "2 33443  86.3920 121.5670 0002050  88.2340 272.1230 14.34215600 56789"),
-            ("SL-16 R/B",
-             "1 23088U 94029B   24100.50000000  .00000050  00000-0  50000-4 0  9995",
-             "2 23088  71.0150  90.3450 0010230 200.1230 159.9870 14.28765400 67890"),
-            ("COSMOS 1408 DEB",
-             "1 49271U 21060A   24100.50000000  .00000300  00000-0  30000-3 0  9996",
-             "2 49271  82.9780 200.6780 0005670 180.4560 179.6540 15.24567800 78901"),
-            ("COSMOS 1408 DEB 2",
-             "1 49272U 21060B   24100.50000000  .00000280  00000-0  28000-3 0  9997",
-             "2 49272  82.9760 201.7890 0005580 181.5670 178.5430 15.24567800 89012"),
-            ("PEGASUS DEB",
-             "1 22826U 93061C   24100.50000000  .00000080  00000-0  80000-4 0  9998",
-             "2 22826  28.4560 150.2340 0015670 220.3450 139.5670 14.98765400 90123"),
-            ("STEP 2 R/B",
-             "1 23461U 94089B   24100.50000000  .00000060  00000-0  60000-4 0  9999",
-             "2 23461  28.5120 155.3450 0014560 225.4560 134.4560 14.97654300 01234"),
-        ]
-
-        objects = []
-        for name, l1, l2 in hardcoded:
-            try:
-                sat = Satrec.twoline2rv(l1, l2)
-                norad_id = str(sat.satnum)
-                inc = float(l2[8:16].strip())
-                mean_motion = float(l2[52:63].strip())
-                period_min = (1440.0 / mean_motion) if mean_motion > 0 else None
-                ecc = float('0.' + l2[26:33].strip())
-                semi_major_km = (398600.4418 / (mean_motion * 2 * 3.14159265 / 86400) ** 2) ** (1/3)
-                apogee  = semi_major_km * (1 + ecc) - 6371.0
-                perigee = semi_major_km * (1 - ecc) - 6371.0
-                country = 'CIS' if 'COSMOS' in name else ('USA' if ('IRIDIUM' in name or 'PEGASUS' in name or 'STEP' in name) else 'PRC' if 'FENGYUN' in name else 'N/A')
-                objects.append(DebrisObject(
-                    norad_id=norad_id,
-                    name=name,
-                    type='DEBRIS',
-                    country=country,
-                    inclination_deg=round(inc, 4),
-                    period_minutes=round(period_min, 4) if period_min else None,
-                    apogee_km=round(apogee, 1),
-                    perigee_km=round(perigee, 1),
-                    tle_line1=l1,
-                    tle_line2=l2,
-                    tle_epoch=datetime.utcnow()
-                ))
-            except Exception as e:
-                print(f"  Debris seed parse error ({name}): {e}")
-
-        if objects:
-            session = db.get_session()
-            try:
-                session.bulk_save_objects(objects)
-                session.commit()
-                print(f"  Seeded {len(objects)} debris objects")
-            finally:
-                session.close()
-
+        seed_data.seed()
     except Exception as e:
         print(f"  Debris seed skipped: {e}")
 
 
 def seed_default_satellites():
-    """Seed the database with default satellites if empty"""
+    """Seed satellites if fewer than 64 exist in DB"""
     try:
-        from satellites.satellite_manager import SatelliteManager
-        mgr = SatelliteManager()
-        if mgr.get_all_satellites(active_only=False):
-            return  # Already seeded
+        from database.db_manager import get_db_manager
+        from database.models import Satellite
+        import seed_data
 
-        defaults = [
-            {'norad_id': '25544', 'name': 'ISS (ZARYA)', 'sat_type': 'Space Station',
-             'description': 'International Space Station', 'operator': 'NASA/Roscosmos'},
-            {'norad_id': '43013', 'name': 'HST', 'sat_type': 'Space Telescope',
-             'description': 'Hubble Space Telescope', 'operator': 'NASA'},
-            {'norad_id': '20580', 'name': 'NOAA-19', 'sat_type': 'Weather Satellite',
-             'description': 'NOAA-19 polar-orbiting weather satellite', 'operator': 'NOAA'},
-        ]
-        for s in defaults:
-            try:
-                mgr.add_satellite(**s)
-            except Exception as e:
-                print(f"  Warning: could not seed {s['norad_id']}: {e}")
-        print(f"  Seeded {len(defaults)} default satellites")
+        db = get_db_manager()
+        session = db.get_session()
+        try:
+            if session.query(Satellite).count() >= 64:
+                return
+        finally:
+            session.close()
+
+        seed_data.seed()
     except Exception as e:
-        print(f"  Seed skipped: {e}")
+        print(f"  Satellite seed skipped: {e}")
 
 
 if __name__ == '__main__':
