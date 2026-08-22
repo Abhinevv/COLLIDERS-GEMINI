@@ -7,7 +7,6 @@ import DebrisTracker from './components/DebrisTracker'
 import CollisionAnalysis from './components/CollisionAnalysis'
 import RiskRanking from './components/RiskRanking'
 import SatelliteRiskProfile from './components/SatelliteRiskProfile'
-import EnhancedFeatures from './components/EnhancedFeatures'
 import Alerts from './components/Alerts'
 
 import ErrorBoundary from './components/ErrorBoundary'
@@ -81,13 +80,6 @@ export default function App() {
           </button>
 
           <button
-            className={'nav-tab' + (activeTab === 'enhanced' ? ' active' : '')}
-            onClick={() => setActiveTab('enhanced')}
-          >
-            🔬 Enhanced Features
-          </button>
-
-          <button
             className={'nav-tab' + (activeTab === 'alerts' ? ' active' : '')}
             onClick={() => setActiveTab('alerts')}
           >
@@ -123,10 +115,6 @@ export default function App() {
 
           <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}>
             <SatelliteRiskProfile />
-          </div>
-
-          <div style={{ display: activeTab === 'enhanced' ? 'block' : 'none' }}>
-            <EnhancedFeatures />
           </div>
 
           <div style={{ display: activeTab === 'alerts' ? 'block' : 'none' }}>
