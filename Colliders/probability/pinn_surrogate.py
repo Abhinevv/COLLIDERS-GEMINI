@@ -7,8 +7,12 @@ Combines:
 """
 
 from typing import Tuple, Optional, Dict, Any, Union
+import os
 import math
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Physical constants for Earth orbit dynamics (WGS-84 / GGM05S)
 EARTH_MU = 398600.4418          # km^3 / s^2 (Earth gravitational parameter)
@@ -289,21 +293,48 @@ except ImportError:
 
 class PINNPropagatorEngine:
     """
-    High-Performance Hybrid PINN Orbital Propagator.
+    High-Performance Hybrid PINN / Taylor-J2 Orbital Propagator.
     Evaluates batches of N >= 100,000 perturbed orbits simultaneously in milliseconds.
+
+    Safety:
+    Untrained neural network weights are never silently served. Unless a valid trained
+    checkpoint (.pth) is explicitly provided via `checkpoint_path` and successfully loaded,
+    this engine always uses the validated physics-based 4th-order Taylor-J2 propagator.
     """
-    def __init__(self, device: Optional[str] = None):
-        self.has_torch = OrbitalPINNSurrogate is not None
-        if self.has_torch:
-            import torch
-            if device is None:
-                self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            else:
-                self.device = torch.device(device)
-            self.model = OrbitalPINNSurrogate().to(self.device)
-            self.model.eval()
+    def __init__(self, device: Optional[str] = None, checkpoint_path: Optional[str] = None):
+        self.checkpoint_path = checkpoint_path
+        self.device = None
+        self.model = None
+        self.has_torch = False
+
+        if checkpoint_path and os.path.exists(checkpoint_path) and OrbitalPINNSurrogate is not None:
+            try:
+                import torch
+                if device is None:
+                    self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                else:
+                    self.device = torch.device(device)
+                model = OrbitalPINNSurrogate().to(self.device)
+                state_dict = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
+                model.load_state_dict(state_dict)
+                model.eval()
+                self.model = model
+                self.has_torch = True
+                logger.info("Loaded trained PINN checkpoint from %s", checkpoint_path)
+            except Exception as e:
+                logger.warning(
+                    "Failed to load PINN checkpoint (%s). Falling back to physics-based Taylor-J2.", e
+                )
+                self.model = None
+                self.has_torch = False
         else:
-            self.device = None
+            if checkpoint_path:
+                logger.warning(
+                    "PINN checkpoint not found at %s. Using physics-based Taylor-J2 fallback.", checkpoint_path
+                )
+            else:
+                logger.info("No PINN checkpoint specified. Using physics-based Taylor-J2 orbital propagator.")
+            self.has_torch = False
             self.model = None
 
     def propagate_batched_perturbations(

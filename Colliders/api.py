@@ -1020,144 +1020,121 @@ def debris_analyze():
             fetcher.fetch_tle(sat_id, f'sat_{sat_id}.txt')
 
         prop = OrbitPropagator(tle_file)
+        samples = int(data.get('samples', 1000))
+        pos_unc_km = float(data.get('position_uncertainty_km', 2.0))
+        debris_radius_km = float(data.get('debris_radius_km', 0.01))
+        satellite_radius_km = float(data.get('satellite_radius_km', 0.01))
+        visualize = bool(data.get('visualize', False))
 
-        try:
-            # Get nominal closest approach
-            result = analyze_debris_vs_satellite(debris, prop, duration_minutes=duration_minutes, step_seconds=step_seconds)
+        # Check if debris is in local TLE cache or database
+        deb_tle_file = f'data/debris_{debris}.txt'
+        deb_prop = None
+        if os.path.exists(deb_tle_file):
+            deb_prop = OrbitPropagator(deb_tle_file)
+        else:
+            from database.db_manager import get_db_manager
+            from database.models import DebrisObject
+            db = get_db_manager()
+            session = db.get_session()
+            try:
+                d_obj = session.query(DebrisObject).filter_by(norad_id=str(debris)).first()
+                if d_obj and d_obj.tle_line1 and d_obj.tle_line2:
+                    with open(deb_tle_file, 'w') as f:
+                        f.write(f"{d_obj.name}\n{d_obj.tle_line1}\n{d_obj.tle_line2}\n")
+                    deb_prop = OrbitPropagator(deb_tle_file)
+            finally:
+                session.close()
 
-            # Monte Carlo collision probability (simple isotropic position uncertainty)
-            samples = int(data.get('samples', 1000))
-            pos_unc_km = float(data.get('position_uncertainty_km', 1000.0))
-            debris_radius_km = float(data.get('debris_radius_km', 0.5))
-            satellite_radius_km = float(data.get('satellite_radius_km', 0.01))
-            visualize = bool(data.get('visualize', False))
+        if deb_prop:
+            # Earth orbit debris with SGP4 & PINN
+            start_time = datetime.now(timezone.utc).replace(tzinfo=None)
+            traj_sat = prop.propagate_trajectory(start_time, duration_minutes, step_seconds)
+            traj_deb = deb_prop.propagate_trajectory(start_time, duration_minutes, step_seconds)
 
-            # If samples > 0, run Monte Carlo using satellite trajectory and debris geocentric positions
-            probability = None
-            if samples > 0:
-                import numpy as np
+            detector = CloseApproachDetector(threshold_km=50.0)
+            events = detector.check_trajectories(traj_sat, traj_deb)
+            closest = detector.find_closest_approach()
 
-                # Recompute expected arrays locally (repeat of analyzer internal steps)
-                from debris.analyze import _require_packages
-                Horizons, Time, u = _require_packages()
-                from astropy.time import Time as _Time
-                # Build astropy epochs and fetch vectors
-                t0 = _Time(datetime.now(timezone.utc).replace(tzinfo=None), scale='utc')
-                num_steps = int((duration_minutes * 60) / step_seconds)
-                astropy_epochs = t0 + (np.arange(num_steps) * step_seconds) * u.s
-                obj = Horizons(id=debris, location='@sun', epochs=astropy_epochs.jd)
-                vec = obj.vectors()
-                AU_KM = 149597870.7
-                debris_pos_au = np.vstack([
-                    np.array(vec['x'], dtype=float),
-                    np.array(vec['y'], dtype=float),
-                    np.array(vec['z'], dtype=float)
-                ]).T
-                debris_pos_km = debris_pos_au * AU_KM
-                earth = Horizons(id='399', location='@sun', epochs=astropy_epochs.jd)
-                earth_vec = earth.vectors()
-                earth_pos_au = np.vstack([
-                    np.array(earth_vec['x'], dtype=float),
-                    np.array(earth_vec['y'], dtype=float),
-                    np.array(earth_vec['z'], dtype=float)
-                ]).T
-                earth_pos_km = earth_pos_au * AU_KM
-                debris_geo_km = debris_pos_km - earth_pos_km
+            if closest:
+                sat_pos_tca = np.array(closest['sat_pos'])
+                sat_vel_tca = np.array(closest['sat_vel'])
+                deb_pos_tca = np.array(closest['debris_pos'])
+                deb_vel_tca = np.array(closest['debris_vel'])
+            else:
+                sat_pos_tca = np.array(traj_sat[0]['position'])
+                sat_vel_tca = np.array(traj_sat[0]['velocity'])
+                deb_pos_tca = np.array(traj_deb[0]['position'])
+                deb_vel_tca = np.array(traj_deb[0]['velocity'])
 
-                # Satellite trajectory positions
-                traj = prop.propagate_trajectory(datetime.now(timezone.utc).replace(tzinfo=None), duration_minutes, step_seconds)
-                sat_positions = np.vstack([s['position'] for s in traj])
+            from probability.pinn_monte_carlo import PINNMonteCarloAssessment
+            pinn_assessor = PINNMonteCarloAssessment()
+            pinn_eval = pinn_assessor.assess_collision_pinn(
+                sat_pos_tca=sat_pos_tca,
+                sat_vel_tca=sat_vel_tca,
+                deb_pos_tca=deb_pos_tca,
+                deb_vel_tca=deb_vel_tca,
+                combined_radius_km=debris_radius_km + satellite_radius_km,
+                cov_sat_6x6=pinn_assessor.create_6x6_covariance(sigma_pos_km=pos_unc_km),
+                cov_deb_6x6=pinn_assessor.create_6x6_covariance(sigma_pos_km=pos_unc_km),
+                num_samples=samples,
+                enable_importance_sampling=True
+            )
 
-                # Align lengths
-                n = min(sat_positions.shape[0], debris_geo_km.shape[0])
-                sat_positions = sat_positions[:n]
-                debris_geo_km = debris_geo_km[:n]
+            result = {
+                'closest_distance_km': closest['distance'] if closest else float(np.linalg.norm(sat_pos_tca - deb_pos_tca)),
+                'closest_time': closest['time'].isoformat() if closest and hasattr(closest['time'], 'isoformat') else str(closest['time']) if closest else start_time.isoformat(),
+                'relative_velocity_kms': float(np.linalg.norm(sat_vel_tca - deb_vel_tca)),
+                'probability': pinn_eval['probability'],
+                'probability_monte_carlo': pinn_eval['probability'],
+                'probability_formatted': pinn_eval['probability_formatted'],
+                'probability_display': pinn_eval['probability_display'],
+                'log10_probability': pinn_eval['log10_probability'],
+                'threat_score': pinn_eval['threat_score'],
+                'risk_level': pinn_eval['risk_level'],
+                'risk_color': pinn_eval['risk_color'],
+                'pinn_accelerated': True,
+                'method': pinn_eval['method'],
+                'execution_time_ms': pinn_eval['execution_time_ms']
+            }
 
-                from probability.pinn_monte_carlo import PINNMonteCarloAssessment
-                pinn_assessor = PINNMonteCarloAssessment()
-                
-                # Closest approach index
-                dists_nom = np.linalg.norm(sat_positions - debris_geo_km, axis=1)
-                tca_idx = int(np.argmin(dists_nom))
-                
-                sat_pos_tca = sat_positions[tca_idx]
-                deb_pos_tca = debris_geo_km[tca_idx]
-                
-                # Approximate velocities via central difference
-                if 0 < tca_idx < n - 1:
-                    sat_vel_tca = (sat_positions[tca_idx + 1] - sat_positions[tca_idx - 1]) / (2.0 * step_seconds)
-                    deb_vel_tca = (debris_geo_km[tca_idx + 1] - debris_geo_km[tca_idx - 1]) / (2.0 * step_seconds)
-                else:
-                    sat_vel_tca = np.array([0.0, 7.6, 0.0])
-                    deb_vel_tca = np.array([7.6, 0.0, 0.0])
-
-                pinn_eval = pinn_assessor.assess_collision_pinn(
-                    sat_pos_tca=sat_pos_tca,
-                    sat_vel_tca=sat_vel_tca,
-                    deb_pos_tca=deb_pos_tca,
-                    deb_vel_tca=deb_vel_tca,
-                    combined_radius_km=debris_radius_km + satellite_radius_km,
-                    cov_sat_6x6=pinn_assessor.create_6x6_covariance(sigma_pos_km=pos_unc_km),
-                    cov_deb_6x6=pinn_assessor.create_6x6_covariance(sigma_pos_km=pos_unc_km),
-                    num_samples=samples,
-                    enable_importance_sampling=True
-                )
-                
-                probability = pinn_eval['probability']
-                result['probability'] = probability
-                result['probability_monte_carlo'] = probability
-                result['probability_formatted'] = pinn_eval['probability_formatted']
-                result['probability_display'] = pinn_eval['probability_display']
-                result['log10_probability'] = pinn_eval['log10_probability']
-                result['pinn_accelerated'] = True
-                result['method'] = pinn_eval['method']
-                result['execution_time_ms'] = pinn_eval['execution_time_ms']
-                result['risk_level'] = pinn_eval['risk_level']
-
-            # Optionally generate a visualization HTML showing satellite and debris
             vis_url = None
             if visualize:
                 visualizer = OrbitVisualizer()
-                # build satellite traj and debris traj in expected structure
-                traj = prop.propagate_trajectory(datetime.now(timezone.utc).replace(tzinfo=None), duration_minutes, step_seconds)
-                sat_traj = traj
-                debris_traj = []
-                for i in range(len(debris_geo_km)):
-                    debris_traj.append({
-                        'time': datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=i * step_seconds),
-                        'position': np.array(debris_geo_km[i]),
-                        'velocity': np.array([0.0, 0.0, 0.0]),
-                        'error': 0
-                    })
-
                 analysis_result = {
-                    'safe': True if (probability is not None and probability == 0.0) else False,
-                    'events': [],
-                    'closest_approach': None,
-                    'risk_assessment': {'probability_monte_carlo': probability},
-                    'trajectories': (sat_traj, debris_traj)
+                    'safe': pinn_eval['risk_level'] == 'SAFE',
+                    'events': events,
+                    'closest_approach': closest,
+                    'risk_assessment': result,
+                    'trajectories': (traj_sat, traj_deb)
                 }
-
-                # Satellite and debris telemetry info
                 info1 = get_object_telemetry_info(sat_id, prop=prop, default_type='PAYLOAD')
-                info2 = get_object_telemetry_info(debris, default_type='DEBRIS')
-
+                info2 = get_object_telemetry_info(debris, prop=deb_prop, default_type='DEBRIS')
                 temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, dir='output')
                 temp_filename = temp_file.name
                 temp_file.close()
                 visualizer.save_html(temp_filename, analysis_result, info1, info2)
                 vis_url = f'/api/visualization/{os.path.basename(temp_filename)}'
 
-            resp = {'status': 'success', 'result': result}
-            if probability is not None:
-                resp['probability'] = probability
+            resp = {
+                'status': 'success',
+                'result': result,
+                'probability': result['probability'],
+                'probability_formatted': result['probability_formatted'],
+                'risk_level': result['risk_level'],
+                'threat_score': result['threat_score']
+            }
             if vis_url:
                 resp['visualization_url'] = vis_url
-
             return jsonify(resp), 200
+
+        try:
+            # Fallback: Horizons for deep space / non-cataloged asteroids
+            result = analyze_debris_vs_satellite(debris, prop, duration_minutes=duration_minutes, step_seconds=step_seconds)
+            return jsonify({'status': 'success', 'result': result}), 200
         except ImportError as ie:
             return jsonify({'error': str(ie), 'install': 'pip install astroquery astropy poliastro'}), 501
         except Exception as e:
+            return jsonify({'error': str(e)}), 500
             return jsonify({'error': str(e), 'type': type(e).__name__}), 500
 
     except Exception as e:
@@ -1557,7 +1534,7 @@ def _run_debris_job(job_id, params):
             'min_distance_km': min_distance,
             'position_uncertainty_km': pos_unc_km,
             'combined_radius_km': thresh,
-            'pinn_accelerated': True,
+            'pinn_accelerated': pinn_res.get('pinn_accelerated', False),
             'method': pinn_res['method'],
             'execution_time_ms': pinn_res['execution_time_ms'],
             'risk_level': pinn_res['risk_level'],
@@ -2902,6 +2879,102 @@ def populate_satellites_endpoint():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/maneuver/calculate', methods=['POST'])
+def calculate_avoidance_maneuver():
+    """Calculate optimal collision avoidance maneuver"""
+    try:
+        data = request.get_json() or {}
+        satellite_id = str(data.get('satellite_id', '25544'))
+        debris_id = str(data.get('debris_id', ''))
+        lead_time = int(data.get('lead_time_minutes', 60))
+        max_dv = float(data.get('max_dv', 10.0))
+        sat_mass = float(data.get('satellite_mass', 500.0))
+        isp = float(data.get('specific_impulse', 300.0))
+        target_clearance = float(data.get('target_clearance_km', 5.0))
+
+        from optimization.avoidance import AvoidanceManeuver
+        from propagation.propagate import OrbitPropagator
+        from fetch_tle import TLEFetcher
+
+        fetcher = TLEFetcher()
+        sat_file = f'data/sat_{satellite_id}.txt'
+        if not os.path.exists(sat_file):
+            fetcher.fetch_tle(satellite_id, f'sat_{satellite_id}.txt')
+        if not os.path.exists(sat_file):
+            sat_file = 'data/iss.txt'
+
+        deb_file = f'data/debris_{debris_id}.txt' if debris_id else 'data/debris_12456.txt'
+        if not os.path.exists(deb_file) and debris_id:
+            fetcher.fetch_tle(debris_id, f'debris_{debris_id}.txt')
+        if not os.path.exists(deb_file):
+            deb_file = 'data/debris_12456.txt'
+
+        sat_prop = OrbitPropagator(sat_file) if os.path.exists(sat_file) else None
+        deb_prop = OrbitPropagator(deb_file) if os.path.exists(deb_file) else None
+
+        optimizer = AvoidanceManeuver(
+            sat_prop,
+            max_dv=max_dv,
+            satellite_mass_kg=sat_mass,
+            specific_impulse_sec=isp
+        )
+
+        burn_time = datetime.now(timezone.utc)
+        if deb_prop:
+            maneuver = optimizer.optimize_maneuver(
+                burn_time,
+                deb_prop,
+                dv_range=(0.1, min(max_dv, 5.0)),
+                target_clearance_km=target_clearance,
+                lead_time_minutes=lead_time
+            )
+        else:
+            maneuver = optimizer._generate_fallback_plan(burn_time, burn_time + timedelta(minutes=lead_time))
+
+        return jsonify({
+            'status': 'success',
+            'satellite_id': satellite_id,
+            'debris_id': debris_id,
+            'maneuver': maneuver
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/maneuver/simulate', methods=['POST'])
+def simulate_avoidance_maneuver():
+    """Simulate post-maneuver trajectory clearance"""
+    try:
+        data = request.get_json() or {}
+        satellite_id = str(data.get('satellite_id', '25544'))
+        delta_v_ms = float(data.get('delta_v_ms', 1.0))
+        direction = data.get('direction', 'RETROGRADE').upper()
+        sat_mass = float(data.get('satellite_mass', 500.0))
+        isp = float(data.get('specific_impulse', 300.0))
+
+        from optimization.avoidance import AvoidanceManeuver
+        opt = AvoidanceManeuver(None, max_dv=20.0, satellite_mass_kg=sat_mass, specific_impulse_sec=isp)
+        fuel_kg = opt.calculate_fuel_consumption(delta_v_ms)
+
+        # Estimate clearance gain (approx 4.5 km per 1 m/s burn in LEO after 1 orbit)
+        clearance_km = round(delta_v_ms * 4.65, 3)
+
+        return jsonify({
+            'status': 'success',
+            'satellite_id': satellite_id,
+            'direction': direction,
+            'delta_v_ms': delta_v_ms,
+            'fuel_consumption_kg': round(fuel_kg, 4),
+            'estimated_clearance_km': clearance_km,
+            'burn_duration_sec': round(delta_v_ms * 12.5, 1)  # typical 80mN electric / 20N monoprop thruster
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 
 def seed_default_debris():

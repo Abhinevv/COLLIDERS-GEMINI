@@ -127,8 +127,8 @@ class PINNMonteCarloAssessment:
     State-of-the-Art PINN-Accelerated Quasi-Monte Carlo Collision Risk Engine.
     """
 
-    def __init__(self, device: Optional[str] = None):
-        self.pinn_engine = PINNPropagatorEngine(device=device)
+    def __init__(self, device: Optional[str] = None, checkpoint_path: Optional[str] = None):
+        self.pinn_engine = PINNPropagatorEngine(device=device, checkpoint_path=checkpoint_path)
 
     @staticmethod
     def compute_risk_and_threat_score(probability: float, miss_distance_km: float) -> Tuple[str, float, str]:
@@ -464,8 +464,8 @@ class PINNMonteCarloAssessment:
             'relative_speed_kms': rel_speed,
             'combined_radius_km': combined_radius_km,
             'importance_sampling_applied': is_active,
-            'pinn_accelerated': True,
-            'method': 'PINN_Monte_Carlo_J2',
+            'pinn_accelerated': bool(self.pinn_engine.has_torch and self.pinn_engine.model is not None),
+            'method': 'PINN_Monte_Carlo_J2' if (self.pinn_engine.has_torch and self.pinn_engine.model is not None) else 'Taylor_J2_Monte_Carlo',
             'execution_time_ms': round(t_elapsed_ms, 2),
             'risk_level': risk_level,
             'risk_color': color,

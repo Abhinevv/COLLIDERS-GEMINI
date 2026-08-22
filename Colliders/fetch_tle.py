@@ -17,17 +17,19 @@ class TLEFetcher:
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
     
-    def fetch_tle(self, satellite_id, filename):
+    def fetch_tle(self, satellite_id, filename=None):
         """
         Fetch TLE data for a specific satellite
         
         Args:
             satellite_id: NORAD catalog number or satellite name
-            filename: Output filename to save TLE data
+            filename: Output filename to save TLE data (optional)
         
         Returns:
             bool: True if successful, False otherwise
         """
+        if filename is None:
+            filename = f"sat_{satellite_id}.txt"
         try:
             # Celestrak API endpoint
             params = {
@@ -50,12 +52,12 @@ class TLEFetcher:
             with open(filepath, 'w') as f:
                 f.write('\n'.join(clean_lines) + '\n')
             
-            print(f"✓ Successfully downloaded TLE data for {satellite_id}")
+            print(f"[OK] Successfully downloaded TLE data for {satellite_id}")
             print(f"  Saved to: {filepath}")
             return True
             
         except requests.exceptions.RequestException as e:
-            print(f"✗ Error fetching TLE data: {e}")
+            print(f"[ERROR] Error fetching TLE data: {e}")
             return False
     
     def fetch_multiple(self, satellites):

@@ -90,9 +90,10 @@ EMAIL_TO_SPACETRACK.txt
 *_TEMP.md
 *_OLD.*
 *_BACKUP.*
-test_*.py
-test_*.ps1
-**/test_*
+!tests/**
+!**/tests/**
+**/__pycache__/
+*.pyc
 quick_*.py
 debug_*.py
 analyze_*.py

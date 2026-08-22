@@ -57,8 +57,8 @@ COLLIDERS is a comprehensive space debris collision avoidance system that combin
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/COLLIDERS.git
-   cd COLLIDERS
+   git clone -b cosmos_pinn https://github.com/Abhinevv/COLLIDERS-GEMINI.git
+   cd COLLIDERS-GEMINI/Colliders
    ```
 
 2. **Set up Python environment**

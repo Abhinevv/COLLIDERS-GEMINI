@@ -118,6 +118,18 @@ class ImprovedCollisionProbability:
             return self.calculate_pc_2d(miss_distance, combined_radius, 
                                        sigma, sigma)
     
+    def monte_carlo_simulation(self, pos1, pos2, vel1=None, vel2=None, num_samples=100000, combined_radius=0.02, **kwargs):
+        """Convenience alias for monte_carlo_with_tle_uncertainty."""
+        return self.monte_carlo_with_tle_uncertainty(
+            sat_position=pos1,
+            debris_position=pos2,
+            combined_radius=combined_radius,
+            num_samples=num_samples,
+            sat_velocity=vel1,
+            debris_velocity=vel2,
+            **kwargs
+        )
+
     def monte_carlo_with_tle_uncertainty(self, sat_position, debris_position,
                                         combined_radius, num_samples=100000,
                                         sat_sigma=None, debris_sigma=None,
@@ -177,7 +189,7 @@ class ImprovedCollisionProbability:
                 'mean_distance': float(res['mean_miss_distance_km']),
                 'min_distance': float(res['min_distance_km']),
                 'min_distance_km': float(res['min_distance_km']),
-                'pinn_accelerated': True,
+                'pinn_accelerated': res.get('pinn_accelerated', False),
                 'method': res['method'],
                 'execution_time_ms': res['execution_time_ms'],
                 'risk_level': res['risk_level']

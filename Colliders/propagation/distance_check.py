@@ -166,10 +166,10 @@ class CloseApproachDetector:
         print("=" * 60)
         
         if summary['total_events'] == 0:
-            print("✓ No close approaches detected")
+            print("[OK] No close approaches detected")
             print(f"  All distances > {self.threshold} km")
         else:
-            print(f"⚠ Total Events: {summary['total_events']}")
+            print(f"[!] Total Events: {summary['total_events']}")
             print(f"  Closest Distance: {summary['closest_distance']:.3f} km")
             print(f"  Time of Closest Approach: {summary['closest_time']}")
             print(f"  Max Relative Velocity: {summary['max_relative_velocity']:.3f} km/s")

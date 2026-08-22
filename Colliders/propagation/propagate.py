@@ -148,6 +148,10 @@ class OrbitPropagator:
             'error': error_code
         }
     
+    def propagate_single_point(self, time):
+        """Alias for propagate(time)"""
+        return self.propagate(time)
+    
     def propagate_trajectory(self, start_time, duration_minutes, step_seconds=60):
         """
         Propagate orbit over time period

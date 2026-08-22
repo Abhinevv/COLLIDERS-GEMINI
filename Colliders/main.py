@@ -1,4 +1,4 @@
-﻿"""
+"""
 COLLIDERS - Main Controller
 Complete collision avoidance pipeline
 """
@@ -55,7 +55,7 @@ class Colliders:
         self.optimizer = AvoidanceManeuver(self.satellite_prop, max_dv=10.0)
         self.visualizer = OrbitVisualizer()
         
-        print("âœ“ System initialized\n")
+        print("[OK] System initialized\n")
     
     def analyze_conjunction(self, start_time, duration_minutes=180, step_seconds=60):
         """
@@ -82,14 +82,14 @@ class Colliders:
             start_time, duration_minutes, step_seconds
         )
         
-        print(f"âœ“ Generated {len(traj_sat)} trajectory points\n")
+        print(f"[OK] Generated {len(traj_sat)} trajectory points\n")
         
         # Detect close approaches
         print("[3/5] Detecting Close Approaches...")
         events = self.detector.check_trajectories(traj_sat, traj_debris)
         
         if not events:
-            print("âœ“ No close approaches detected - Safe trajectory")
+            print("[OK] No close approaches detected - Safe trajectory")
             return {
                 'safe': True,
                 'events': [],
@@ -194,7 +194,7 @@ class Colliders:
         # Save visualization with analysis results for enhanced dashboard
         self.visualizer.save_html(output_file, analysis_result=analysis_result, 
                                   satellite_info1=satellite_info1, satellite_info2=satellite_info2)
-        print(f"âœ“ Open {output_file} in your browser to view")
+        print(f"[OK] Open {output_file} in your browser to view")
     
     def run_complete_analysis(self):
         """Run full collision avoidance analysis pipeline"""
