@@ -5,6 +5,11 @@ export default function IBSDeorbitDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Debris catalog state
+  const [debrisCatalog, setDebrisCatalog] = useState([])
+  const [selectedDebrisNorad, setSelectedDebrisNorad] = useState('')
+  const [catalogSearch, setCatalogSearch] = useState('')
+
   // Simulation playback state
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(true)
@@ -17,7 +22,14 @@ export default function IBSDeorbitDashboard() {
 
   // Default Mission Parameters (matching reference specification)
   const [params, setParams] = useState({
+    debris_name: 'Generic Space Debris',
+    norad_id: null,
+    debris_type: 'DEBRIS',
+    rcs_size: 'MEDIUM',
+    inclination_deg: 51.6,
     debris_mass_kg: 500,
+    mass_estimated: false,
+    based_on: null,
     initial_altitude_km: 800,
     initial_speed_kms: 7.35,
     ion_beam_force_mN: 20.0,
@@ -28,16 +40,30 @@ export default function IBSDeorbitDashboard() {
     drag_coefficient_cd: 2.2,
   })
 
-  // Fetch simulation data on mount
+  // Load debris catalog on mount
   useEffect(() => {
+    loadDebrisCatalog()
     fetchSimulation()
   }, [])
 
-  async function fetchSimulation(customParams = null) {
+  async function loadDebrisCatalog() {
+    try {
+      const res = await fetch('http://localhost:5000/api/space_debris/recent?limit=100')
+      if (res.ok) {
+        const data = await res.json()
+        setDebrisCatalog(data.debris || [])
+      }
+    } catch (err) {
+      console.warn('Could not load debris catalog for picker:', err)
+    }
+  }
+
+  async function fetchSimulation(customPayload = null) {
     setLoading(true)
     setError(null)
+    setIsPlaying(false)
     try {
-      const payload = customParams || params
+      const payload = customPayload || (selectedDebrisNorad ? { norad_id: selectedDebrisNorad } : params)
       const response = await fetch('http://localhost:5000/api/ibs-deorbit-simulation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,6 +74,12 @@ export default function IBSDeorbitDashboard() {
       }
       const data = await response.json()
       setSimulationData(data)
+      if (data.mission_parameters) {
+        setParams(prev => ({
+          ...prev,
+          ...data.mission_parameters
+        }))
+      }
       setCurrentIndex(0)
       setIsPlaying(true)
     } catch (err) {
@@ -55,6 +87,26 @@ export default function IBSDeorbitDashboard() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  function handleSelectDebris(noradId) {
+    setSelectedDebrisNorad(noradId)
+    if (!noradId) {
+      // Revert to manual defaults
+      fetchSimulation({
+        debris_mass_kg: 500,
+        initial_altitude_km: 800,
+        initial_speed_kms: 7.35,
+        ion_beam_force_mN: 20.0,
+        ion_mass_flow_rate_mg_s: 1.00,
+        ion_exhaust_velocity_kms: 20.0,
+        shepherd_mass_kg: 1500,
+        drag_area_m2: 2.0,
+        drag_coefficient_cd: 2.2,
+      })
+    } else {
+      fetchSimulation({ norad_id: noradId })
     }
   }
 
@@ -98,6 +150,17 @@ export default function IBSDeorbitDashboard() {
     return simulationData.time_series[currentIndex] || simulationData.time_series[0]
   }, [simulationData, currentIndex])
 
+  // Filtered debris catalog for dropdown
+  const filteredDebris = useMemo(() => {
+    if (!catalogSearch.trim()) return debrisCatalog
+    const q = catalogSearch.toLowerCase()
+    return debrisCatalog.filter(
+      d => (d.name && d.name.toLowerCase().includes(q)) ||
+           (d.norad_id && String(d.norad_id).includes(q)) ||
+           (d.type && d.type.toLowerCase().includes(q))
+    )
+  }, [debrisCatalog, catalogSearch])
+
   // Draw main orbital view on Canvas
   useEffect(() => {
     const canvas = canvasRef.current
@@ -121,12 +184,13 @@ export default function IBSDeorbitDashboard() {
     ctx.fillRect(0, 0, width, height)
 
     // Scaling
-    const maxRadiusKm = 6371 + (params.initial_altitude_km || 800) + 120
+    const initialAlt = params.initial_altitude_km || 800
+    const maxRadiusKm = 6371 + Math.max(initialAlt, 800) + 120
     const canvasMaxR = Math.min(width, height) * 0.44
     const kmToPx = canvasMaxR / maxRadiusKm
 
     const rEarthPx = 6371 * kmToPx
-    const rInitialPx = (6371 + (params.initial_altitude_km || 800)) * kmToPx
+    const rInitialPx = (6371 + initialAlt) * kmToPx
     const rCurrentPx = (6371 + currentStep.altitude_km) * kmToPx
     const rReentryPx = (6371 + 100) * kmToPx
 
@@ -149,7 +213,7 @@ export default function IBSDeorbitDashboard() {
     ctx.stroke()
     ctx.setLineDash([])
 
-    // 3. Initial Orbit (800 km) Dashed Blue Circle (Fixed Reference)
+    // 3. Initial Orbit Dashed Blue Circle (Fixed Reference)
     ctx.beginPath()
     ctx.setLineDash([6, 6])
     ctx.strokeStyle = '#2979ff'
@@ -221,12 +285,11 @@ export default function IBSDeorbitDashboard() {
     const debrisX = centerX + rCurrentPx * Math.cos(theta)
     const debrisY = centerY + rCurrentPx * Math.sin(theta)
 
-    // Shepherd craft leads ahead in orbit (~12 degrees)
     const leadAngle = theta + 0.22
     const shepherdX = centerX + rCurrentPx * Math.cos(leadAngle)
     const shepherdY = centerY + rCurrentPx * Math.sin(leadAngle)
 
-    // 8. Directed Ion Beam Vector (Red Pulsing Beam from Shepherd to Debris)
+    // 8. Directed Ion Beam Vector
     ctx.save()
     ctx.beginPath()
     ctx.moveTo(shepherdX, shepherdY)
@@ -237,7 +300,7 @@ export default function IBSDeorbitDashboard() {
     ctx.shadowBlur = 10
     ctx.stroke()
 
-    // Moving plasma packet
+    // Plasma particle
     const pulseT = (Date.now() % 1000) / 1000
     const beamPulseX = shepherdX + (debrisX - shepherdX) * pulseT
     const beamPulseY = shepherdY + (debrisY - shepherdY) * pulseT
@@ -247,7 +310,7 @@ export default function IBSDeorbitDashboard() {
     ctx.fill()
     ctx.restore()
 
-    // 9. Shepherd Spacecraft (Blue Glowing Square)
+    // 9. Shepherd Spacecraft
     ctx.save()
     ctx.fillStyle = '#00e5ff'
     ctx.shadowColor = '#00e5ff'
@@ -263,7 +326,7 @@ export default function IBSDeorbitDashboard() {
     ctx.textAlign = 'left'
     ctx.fillText('IBS Shepherd', shepherdX + 10, shepherdY - 6)
 
-    // 10. Debris Object (Yellow Glowing Dot)
+    // 10. Debris Object
     ctx.save()
     ctx.beginPath()
     ctx.arc(debrisX, debrisY, 6, 0, 2 * Math.PI)
@@ -276,29 +339,29 @@ export default function IBSDeorbitDashboard() {
     ctx.stroke()
     ctx.restore()
 
+    const labelName = params.debris_name ? params.debris_name.slice(0, 18) : 'Debris'
     ctx.fillStyle = '#ffd600'
     ctx.font = 'bold 10px "Exo 2", sans-serif'
     ctx.textAlign = 'left'
-    ctx.fillText('Debris (500kg)', debrisX + 10, debrisY + 14)
+    ctx.fillText(`${labelName} (${params.debris_mass_kg}kg)`, debrisX + 10, debrisY + 14)
 
-    // 11. Right-side Atmospheric Density Colorbar (Log Scale)
+    // 11. Right-side Atmospheric Density Colorbar
     const barX = width - 40
     const barY = 80
     const barW = 14
     const barH = 220
 
     const barGrad = ctx.createLinearGradient(barX, barY, barX, barY + barH)
-    barGrad.addColorStop(0, '#1a237e')     // 10^-14 (Vacuum)
-    barGrad.addColorStop(0.35, '#0288d1')  // 10^-10
-    barGrad.addColorStop(0.7, '#ffb300')   // 10^-6
-    barGrad.addColorStop(1, '#ff1744')     // 10^-2 (Re-entry)
+    barGrad.addColorStop(0, '#1a237e')
+    barGrad.addColorStop(0.35, '#0288d1')
+    barGrad.addColorStop(0.7, '#ffb300')
+    barGrad.addColorStop(1, '#ff1744')
 
     ctx.fillStyle = barGrad
     ctx.fillRect(barX, barY, barW, barH)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
     ctx.strokeRect(barX, barY, barW, barH)
 
-    // Labels for colorbar
     ctx.fillStyle = '#aaa'
     ctx.font = '8px monospace'
     ctx.textAlign = 'left'
@@ -306,9 +369,7 @@ export default function IBSDeorbitDashboard() {
     ctx.fillText('1e-8', barX - 26, barY + barH * 0.5)
     ctx.fillText('1e-2', barX - 26, barY + barH - 2)
 
-    // Density pointer indicator
     const logRho = Math.log10(Math.max(1e-14, currentStep.atmospheric_density_kg_m3))
-    // Map -14 to -2 into 0 to 1
     const normRho = Math.min(1, Math.max(0, (logRho - (-14)) / 12))
     const ptrY = barY + normRho * barH
 
@@ -370,11 +431,73 @@ export default function IBSDeorbitDashboard() {
       </div>
 
       {/* 2. Main Top Grid: Left Sidebar + Center Orbit Canvas */}
-      <div style={{ display: 'grid', gridTemplateColumns: '330px 1fr', gap: '14px', marginBottom: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '14px', marginBottom: '14px' }}>
         
-        {/* Left Sidebar (4 Stacked Boxes) */}
+        {/* Left Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           
+          {/* Debris Target Selector Card */}
+          <div className="stat-card" style={{ padding: '12px 14px', border: '1px solid rgba(100, 255, 218, 0.4)', background: 'rgba(4, 16, 24, 0.95)' }}>
+            <h3 style={{ color: '#64ffda', fontSize: '0.82rem', letterSpacing: '1.5px', borderBottom: '1px solid rgba(100, 255, 218, 0.25)', paddingBottom: '5px', marginBottom: '8px' }}>
+              🎯 SELECT TARGET DEBRIS OBJECT
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <select
+                value={selectedDebrisNorad}
+                onChange={(e) => handleSelectDebris(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(2, 6, 13, 0.9)',
+                  border: '1px solid rgba(77, 163, 255, 0.4)',
+                  color: '#ffffff',
+                  padding: '8px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">⚙️ Custom / Manual Parameters (800 km Default)</option>
+                {debrisCatalog.map((d) => {
+                  const avgAlt = d.apogee_km && d.perigee_km ? Math.round((d.apogee_km + d.perigee_km) / 2) : 800
+                  return (
+                    <option key={d.norad_id} value={d.norad_id}>
+                      {d.name} ({d.norad_id} • {d.type || 'DEBRIS'} • {avgAlt}km • {d.rcs_size || 'MED'})
+                    </option>
+                  )
+                })}
+              </select>
+
+              {/* Quick Select Chips */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+                {[
+                  { id: '44120', name: 'PSLV C-45 DEB' },
+                  { id: '44858', name: 'PSLV R/B' },
+                  { id: '28944', name: 'Resourcesat DEB' },
+                  { id: '33760', name: 'Cosmos 2251' },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    style={{
+                      background: selectedDebrisNorad === item.id ? 'rgba(100, 255, 218, 0.3)' : 'rgba(255, 255, 255, 0.05)',
+                      border: selectedDebrisNorad === item.id ? '1px solid #64ffda' : '1px solid rgba(255, 255, 255, 0.15)',
+                      color: selectedDebrisNorad === item.id ? '#64ffda' : '#aaa',
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.72rem',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSelectDebris(item.id)}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* Box 1: Mission Parameters */}
           <div className="stat-card" style={{ padding: '12px 14px' }}>
             <h3 style={{ color: '#00e5ff', fontSize: '0.82rem', letterSpacing: '1.5px', borderBottom: '1px solid rgba(0, 229, 255, 0.25)', paddingBottom: '5px', marginBottom: '8px' }}>
@@ -382,28 +505,38 @@ export default function IBSDeorbitDashboard() {
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.82rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#888' }}>Target Object:</span>
+                <strong style={{ color: '#ffd600', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={params.debris_name}>
+                  {params.debris_name}
+                </strong>
+              </div>
+              {params.norad_id && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#888' }}>NORAD ID:</span>
+                  <strong style={{ color: '#64ffda' }}>{params.norad_id}</strong>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#888' }}>Debris Mass:</span>
-                <strong style={{ color: '#f0f6ff' }}>{params.debris_mass_kg} kg</strong>
+                <strong style={{ color: '#f0f6ff' }}>
+                  {params.debris_mass_kg} kg {params.mass_estimated ? '(RCS est.)' : ''}
+                </strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#888' }}>Initial Altitude:</span>
-                <strong style={{ color: '#f0f6ff' }}>{params.initial_altitude_km} km</strong>
+                <strong style={{ color: '#f0f6ff' }}>{params.initial_altitude_km.toFixed(1)} km</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#888' }}>Inclination:</span>
+                <strong style={{ color: '#f0f6ff' }}>{params.inclination_deg.toFixed(1)}°</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#888' }}>Initial Speed:</span>
-                <strong style={{ color: '#f0f6ff' }}>{params.initial_speed_kms} km/s</strong>
+                <strong style={{ color: '#f0f6ff' }}>{params.initial_speed_kms.toFixed(3)} km/s</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#888' }}>Ion Beam Force:</span>
                 <strong style={{ color: '#ff5252' }}>{params.ion_beam_force_mN} mN</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#888' }}>Ion Mass Flow Rate:</span>
-                <strong style={{ color: '#f0f6ff' }}>{params.ion_mass_flow_rate_mg_s} mg/s</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#888' }}>Ion Exhaust Velocity:</span>
-                <strong style={{ color: '#f0f6ff' }}>{params.ion_exhaust_velocity_kms} km/s</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#888' }}>Shepherd Mass:</span>
@@ -414,7 +547,7 @@ export default function IBSDeorbitDashboard() {
                 <strong style={{ color: '#f0f6ff' }}>{params.drag_area_m2} m²</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#888' }}>Drag Coefficient (Cd):</span>
+                <span style={{ color: '#888' }}>Drag Coeff (Cd):</span>
                 <strong style={{ color: '#f0f6ff' }}>{params.drag_coefficient_cd}</strong>
               </div>
             </div>
@@ -439,7 +572,7 @@ export default function IBSDeorbitDashboard() {
                 <strong style={{ color: '#f0f6ff' }}>1.225 kg/m³</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#888' }}>Atmospheric Scale Height (H):</span>
+                <span style={{ color: '#888' }}>Scale Height (H):</span>
                 <strong style={{ color: '#f0f6ff' }}>8,500 m</strong>
               </div>
             </div>
@@ -460,19 +593,19 @@ export default function IBSDeorbitDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#aaa' }}>Altitude:</span>
                 <strong style={{ color: currentStep && currentStep.altitude_km <= 120 ? '#ff5252' : '#00e676', fontSize: '0.95rem' }}>
-                  {currentStep ? `${currentStep.altitude_km.toFixed(1)} km` : '800.0 km'}
+                  {currentStep ? `${currentStep.altitude_km.toFixed(1)} km` : `${params.initial_altitude_km.toFixed(1)} km`}
                 </strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#aaa' }}>Orbital Speed:</span>
                 <strong style={{ color: '#f0f6ff', fontFamily: 'monospace' }}>
-                  {currentStep ? `${currentStep.speed_kms.toFixed(3)} km/s` : '7.456 km/s'}
+                  {currentStep ? `${currentStep.speed_kms.toFixed(3)} km/s` : `${params.initial_speed_kms.toFixed(3)} km/s`}
                 </strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#aaa' }}>Range from Earth Center:</span>
+                <span style={{ color: '#aaa' }}>Range from Center:</span>
                 <strong style={{ color: '#f0f6ff', fontFamily: 'monospace' }}>
-                  {currentStep ? `${currentStep.range_from_earth_center_km.toFixed(1)} km` : '7171.0 km'}
+                  {currentStep ? `${currentStep.range_from_earth_center_km.toFixed(1)} km` : `${(6371 + params.initial_altitude_km).toFixed(1)} km`}
                 </strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -525,7 +658,7 @@ export default function IBSDeorbitDashboard() {
               style={{ width: '100%', height: '100%', display: 'block' }}
             />
 
-            {/* Top-Left Legend Box (Matching Reference Layout) */}
+            {/* Top-Left Legend Box */}
             <div style={{
               position: 'absolute',
               top: '12px',
@@ -542,7 +675,7 @@ export default function IBSDeorbitDashboard() {
               pointerEvents: 'none'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#ffd600', fontSize: '0.9rem' }}>🟡</span> <span>Debris Target ({params.debris_mass_kg} kg)</span>
+                <span style={{ color: '#ffd600', fontSize: '0.9rem' }}>🟡</span> <span>{params.debris_name} ({params.debris_mass_kg} kg)</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#00e5ff', fontSize: '0.9rem' }}>🟦</span> <span>IBS Shepherd Craft ({params.shepherd_mass_kg} kg)</span>
@@ -551,10 +684,10 @@ export default function IBSDeorbitDashboard() {
                 <span style={{ color: '#ff1744', fontWeight: 'bold' }}>━►</span> <span>Directed Ion Beam ({params.ion_beam_force_mN} mN)</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#00e676', fontWeight: 'bold' }}>━━</span> <span>Decaying Orbit (Current: {currentStep ? currentStep.altitude_km.toFixed(0) : '800'} km)</span>
+                <span style={{ color: '#00e676', fontWeight: 'bold' }}>━━</span> <span>Decaying Orbit (Current: {currentStep ? currentStep.altitude_km.toFixed(0) : params.initial_altitude_km.toFixed(0)} km)</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#2979ff' }}>- -</span> <span>Initial Reference Orbit ({params.initial_altitude_km} km)</span>
+                <span style={{ color: '#2979ff' }}>- -</span> <span>Initial Reference Orbit ({params.initial_altitude_km.toFixed(0)} km)</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#ff5252' }}>- -</span> <span>Re-entry Threshold (100 km)</span>
@@ -576,7 +709,7 @@ export default function IBSDeorbitDashboard() {
             }}>
               <div style={{ fontSize: '0.72rem', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase' }}>Live Mission Clock</div>
               <div style={{ fontSize: '1.3rem', color: '#00e676', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                ALT: {currentStep ? currentStep.altitude_km.toFixed(1) : '800.0'} KM
+                ALT: {currentStep ? currentStep.altitude_km.toFixed(1) : params.initial_altitude_km.toFixed(1)} KM
               </div>
               <div style={{ fontSize: '1.05rem', color: '#00e5ff', fontFamily: 'monospace' }}>
                 TIME: {currentStep ? currentStep.elapsed_time_days.toFixed(1) : '0.0'} DAYS
@@ -661,7 +794,7 @@ export default function IBSDeorbitDashboard() {
                 }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#888' }}>
-                <span>Day 0.0 (800 km)</span>
+                <span>Day 0.0 ({params.initial_altitude_km.toFixed(0)} km)</span>
                 <span style={{ color: '#00e676', fontWeight: 'bold' }}>
                   {currentStep ? `Day ${currentStep.elapsed_time_days.toFixed(1)} (${currentStep.altitude_km.toFixed(0)} km)` : ''}
                 </span>
@@ -697,7 +830,7 @@ export default function IBSDeorbitDashboard() {
 
       </div>
 
-      {/* 3. Bottom Row: 3 Panels Matching Reference (Altitude vs Time | X/Y Trajectory | Orbital Elements & IBS Summary) */}
+      {/* 3. Bottom Row: 3 Panels */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr', gap: '14px', marginBottom: '14px' }}>
         
         {/* Bottom-Left: Altitude vs Time Chart */}
@@ -717,7 +850,7 @@ export default function IBSDeorbitDashboard() {
 
               const maxT = pts[pts.length - 1].elapsed_time_days || 100
               const minAlt = 0
-              const maxAlt = params.initial_altitude_km || 800
+              const maxAlt = Math.max(800, params.initial_altitude_km || 800)
 
               const scaleX = (t) => padX + (t / maxT) * (svgW - padX - 10)
               const scaleY = (a) => svgH - padY - ((a - minAlt) / (maxAlt - minAlt)) * (svgH - padY - 10)
@@ -730,7 +863,7 @@ export default function IBSDeorbitDashboard() {
 
               const reEntryY = scaleY(100)
               const curX = currentStep ? scaleX(currentStep.elapsed_time_days) : padX
-              const curY = currentStep ? scaleY(currentStep.altitude_km) : scaleY(800)
+              const curY = currentStep ? scaleY(currentStep.altitude_km) : scaleY(params.initial_altitude_km)
 
               return (
                 <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: '100%' }}>
@@ -738,27 +871,19 @@ export default function IBSDeorbitDashboard() {
                   <line x1={padX} y1={padY} x2={padX} y2={svgH - padY} stroke="rgba(255,255,255,0.12)" />
                   <line x1={padX} y1={svgH - padY} x2={svgW - 10} y2={svgH - padY} stroke="rgba(255,255,255,0.12)" />
 
-                  {/* Horizontal Guide lines */}
-                  <line x1={padX} y1={scaleY(400)} x2={svgW - 10} y2={scaleY(400)} stroke="rgba(255,255,255,0.06)" strokeDasharray="2,2" />
-                  <line x1={padX} y1={scaleY(600)} x2={svgW - 10} y2={scaleY(600)} stroke="rgba(255,255,255,0.06)" strokeDasharray="2,2" />
-
-                  {/* 100 km Re-entry Line */}
                   <line x1={padX} y1={reEntryY} x2={svgW - 10} y2={reEntryY} stroke="#ff5252" strokeDasharray="3,3" strokeWidth="1.5" />
                   <text x={padX + 6} y={reEntryY - 4} fill="#ff5252" fontSize="9" fontFamily="sans-serif">Re-entry Threshold (100 km)</text>
 
-                  {/* Altitude Curve */}
                   <path d={pathD} fill="none" stroke="#00e676" strokeWidth="2.5" />
 
-                  {/* Current Position Marker */}
                   <circle cx={curX} cy={curY} r="5" fill="#ffd600" stroke="#ffffff" strokeWidth="1.5" />
                   <line x1={curX} y1={padY} x2={curX} y2={svgH - padY} stroke="rgba(255, 214, 0, 0.4)" strokeDasharray="2,2" />
 
-                  {/* Axis Labels */}
-                  <text x={padX - 6} y={padY + 6} fill="#888" fontSize="8" textAnchor="end">{maxAlt}km</text>
+                  <text x={padX - 6} y={padY + 6} fill="#888" fontSize="8" textAnchor="end">{maxAlt.toFixed(0)}km</text>
                   <text x={padX - 6} y={reEntryY + 3} fill="#ff5252" fontSize="8" textAnchor="end">100km</text>
                   <text x={padX - 6} y={svgH - padY} fill="#888" fontSize="8" textAnchor="end">0km</text>
                   <text x={padX} y={svgH - 2} fill="#888" fontSize="8">Day 0</text>
-                  <text x={svgW - 12} y={svgH - 2} fill="#888" fontSize="8" textAnchor="end">{maxT.toFixed(0)}d</text>
+                  <text x={svgW - 12} y={svgH - 2} fill="#888" fontSize="8" textAnchor="end">{maxT.toFixed(1)}d</text>
                 </svg>
               )
             })()}
@@ -776,7 +901,7 @@ export default function IBSDeorbitDashboard() {
               if (pts.length < 2) return null
               const svgSize = 160
               const center = svgSize / 2
-              const maxR = 6371 + (params.initial_altitude_km || 800)
+              const maxR = 6371 + Math.max(800, params.initial_altitude_km || 800)
               const scale = (svgSize * 0.44) / maxR
 
               const spiralD = pts.reduce((acc, p, idx) => {
@@ -791,20 +916,15 @@ export default function IBSDeorbitDashboard() {
 
               return (
                 <svg viewBox={`0 0 ${svgSize} ${svgSize}`} style={{ width: '160px', height: '160px' }}>
-                  {/* Axis Crosshairs */}
                   <line x1={0} y1={center} x2={svgSize} y2={center} stroke="rgba(255,255,255,0.08)" />
                   <line x1={center} y1={0} x2={center} y2={svgSize} stroke="rgba(255,255,255,0.08)" />
 
-                  {/* Earth Disk at origin */}
                   <circle cx={center} cy={center} r={rEarth} fill="#0288d1" stroke="#4fc3f7" strokeWidth="1" />
                   
-                  {/* Initial Orbit Ring */}
-                  <circle cx={center} cy={center} r={maxR * scale} fill="none" stroke="#2979ff" strokeDasharray="3,3" strokeWidth="1" />
+                  <circle cx={center} cy={center} r={(6371 + params.initial_altitude_km) * scale} fill="none" stroke="#2979ff" strokeDasharray="3,3" strokeWidth="1" />
 
-                  {/* Decayed Spiral Path */}
                   <path d={spiralD} fill="none" stroke="rgba(0, 230, 118, 0.4)" strokeWidth="1" />
 
-                  {/* Current Position Marker */}
                   <circle cx={curX} cy={curY} r="4" fill="#ffd600" stroke="#ffffff" strokeWidth="1" />
                 </svg>
               )

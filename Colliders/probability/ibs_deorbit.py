@@ -5,7 +5,7 @@ coupled with exponential atmospheric drag deceleration.
 """
 
 import math
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
 
 class IBSDeorbitSimulator:
@@ -26,23 +26,155 @@ class IBSDeorbitSimulator:
         self,
         debris_mass_kg: float = 500.0,
         initial_altitude_km: float = 800.0,
-        initial_speed_kms: float = 7.35,
+        initial_speed_kms: Optional[float] = None,
         ion_beam_force_mN: float = 20.0,
         ion_mass_flow_rate_mg_s: float = 1.00,
         ion_exhaust_velocity_kms: float = 20.0,
         shepherd_mass_kg: float = 1500.0,
         drag_area_m2: float = 2.0,
         drag_coefficient_cd: float = 2.2,
+        debris_name: Optional[str] = "Generic Debris",
+        norad_id: Optional[str] = None,
+        rcs_size: Optional[str] = None,
+        debris_type: Optional[str] = "DEBRIS",
+        inclination_deg: float = 51.6,
+        mass_estimated: bool = False,
+        based_on: Optional[str] = None,
     ):
         self.debris_mass_kg = float(debris_mass_kg)
         self.initial_altitude_km = float(initial_altitude_km)
-        self.initial_speed_kms = float(initial_speed_kms)
+
+        # Derive initial circular velocity via vis-viva if not explicitly specified
+        r0 = self.EARTH_RADIUS_KM + self.initial_altitude_km
+        if initial_speed_kms is not None and initial_speed_kms > 0:
+            self.initial_speed_kms = float(initial_speed_kms)
+        else:
+            self.initial_speed_kms = math.sqrt(self.MU_KM3_S2 / max(1.0, r0))
+
         self.ion_beam_force_mN = float(ion_beam_force_mN)
         self.ion_mass_flow_rate_mg_s = float(ion_mass_flow_rate_mg_s)
         self.ion_exhaust_velocity_kms = float(ion_exhaust_velocity_kms)
         self.shepherd_mass_kg = float(shepherd_mass_kg)
         self.drag_area_m2 = float(drag_area_m2)
         self.drag_coefficient_cd = float(drag_coefficient_cd)
+
+        # Metadata for telemetry and reporting
+        self.debris_name = debris_name or "Generic Debris"
+        self.norad_id = str(norad_id) if norad_id else None
+        self.rcs_size = rcs_size
+        self.debris_type = debris_type or "DEBRIS"
+        self.inclination_deg = float(inclination_deg) if inclination_deg is not None else 51.6
+        self.mass_estimated = mass_estimated
+        self.based_on = based_on
+
+    @classmethod
+    def from_debris(cls, debris: Union[Dict[str, Any], Any], **kwargs) -> "IBSDeorbitSimulator":
+        """
+        Factory method to instantiate an IBSDeorbitSimulator from a DebrisObject database model
+        or dictionary representation.
+
+        Physical Derivations:
+        - initial_altitude_km: Calculated from the mean semi-major axis altitude h_mean = (apogee_km + perigee_km) / 2.
+          For a decaying orbit under continuous low-thrust tangential force, the semi-major axis represents
+          the energy-equivalent circular orbit radius a = R_E + h_mean.
+        - initial_speed_kms: Derived dynamically via the vis-viva equation v = sqrt(mu / (R_E + h_mean)).
+        - debris_mass_kg: Estimated from the radar cross-section (rcs_size) category:
+            * 'SMALL'  (< 0.1 m^2 RCS, e.g. fragment): 15.0 kg, drag area 0.2 m^2
+            * 'MEDIUM' (0.1 - 1.0 m^2 RCS, e.g. payload component / microsat): 150.0 kg, drag area 1.0 m^2
+            * 'LARGE'  (> 1.0 m^2 RCS, e.g. derelict bus / spent stage): 750.0 kg, drag area 2.5 m^2
+            * 'ROCKET BODY' (if type contains 'ROCKET' or 'R/B'): 1200.0 kg, drag area 3.5 m^2
+          Can be explicitly overridden via kwargs['debris_mass_kg'].
+        - inclination_deg: Passed through from debris record for exact telemetry display.
+        """
+        # Handle dict or SQLAlchemy model
+        if hasattr(debris, "to_dict"):
+            d = debris.to_dict()
+        elif isinstance(debris, dict):
+            d = debris
+        else:
+            d = {
+                "norad_id": getattr(debris, "norad_id", None),
+                "name": getattr(debris, "name", "Debris Object"),
+                "type": getattr(debris, "type", "DEBRIS"),
+                "rcs_size": getattr(debris, "rcs_size", None),
+                "apogee_km": getattr(debris, "apogee_km", None),
+                "perigee_km": getattr(debris, "perigee_km", None),
+                "inclination_deg": getattr(debris, "inclination_deg", None),
+            }
+
+        # 1. Derive Altitude
+        apogee = d.get("apogee_km") or d.get("apogee")
+        perigee = d.get("perigee_km") or d.get("perigee")
+        if apogee is not None and perigee is not None:
+            initial_altitude = (float(apogee) + float(perigee)) / 2.0
+        elif perigee is not None:
+            initial_altitude = float(perigee)
+        elif apogee is not None:
+            initial_altitude = float(apogee)
+        else:
+            initial_altitude = 800.0
+
+        # Guard against zero/negative altitude
+        initial_altitude = max(110.0, initial_altitude)
+
+        # 2. Derive Speed via Vis-Viva
+        r0 = cls.EARTH_RADIUS_KM + initial_altitude
+        initial_speed = math.sqrt(cls.MU_KM3_S2 / r0)
+
+        # 3. Derive Mass & Drag Area from RCS bucket or Type
+        rcs = str(d.get("rcs_size") or "").upper().strip()
+        debris_type = str(d.get("type") or "DEBRIS").upper().strip()
+
+        mass_estimated = True
+        based_on = "rcs_size"
+
+        if "ROCKET" in debris_type or "R/B" in debris_type or "STAGE" in debris_type:
+            derived_mass = 1200.0
+            derived_area = 3.5
+            based_on = "type: ROCKET BODY"
+        elif rcs == "SMALL":
+            derived_mass = 15.0
+            derived_area = 0.2
+        elif rcs == "LARGE":
+            derived_mass = 750.0
+            derived_area = 2.5
+        elif rcs == "MEDIUM":
+            derived_mass = 150.0
+            derived_area = 1.0
+        else:
+            derived_mass = 500.0
+            derived_area = 2.0
+            based_on = "standard default"
+
+        # Apply overrides if provided
+        final_mass = kwargs.pop("debris_mass_kg", None)
+        if final_mass is not None:
+            derived_mass = float(final_mass)
+            mass_estimated = False
+            based_on = "explicit user override"
+
+        final_area = kwargs.pop("drag_area_m2", None)
+        if final_area is not None:
+            derived_area = float(final_area)
+
+        # 4. Inclination
+        inc = d.get("inclination_deg") or d.get("inclination")
+        inclination_deg = float(inc) if inc is not None else 51.6
+
+        return cls(
+            debris_mass_kg=derived_mass,
+            initial_altitude_km=kwargs.pop("initial_altitude_km", initial_altitude),
+            initial_speed_kms=kwargs.pop("initial_speed_kms", initial_speed),
+            drag_area_m2=derived_area,
+            debris_name=d.get("name") or f"Debris {d.get('norad_id')}",
+            norad_id=d.get("norad_id"),
+            rcs_size=rcs or "UNKNOWN",
+            debris_type=d.get("type") or "DEBRIS",
+            inclination_deg=inclination_deg,
+            mass_estimated=mass_estimated,
+            based_on=based_on,
+            **kwargs,
+        )
 
     def atmospheric_density(self, altitude_km: float) -> float:
         """
@@ -52,7 +184,6 @@ class IBSDeorbitSimulator:
         if altitude_km < 0.0:
             return self.RHO_0
         altitude_m = altitude_km * 1000.0
-        # Prevent math underflow for deep space / high LEO
         exponent = -altitude_m / self.SCALE_HEIGHT_M
         if exponent < -700.0:
             return 1e-300
@@ -62,9 +193,6 @@ class IBSDeorbitSimulator:
         """
         Compute orbital velocity, atmospheric density, drag deceleration, ion beam deceleration,
         and radial rate of orbital decay (dr/dt).
-        
-        Returns:
-            (v_kms, rho, a_drag_ms2, a_ion_ms2, dr_dt_kms)
         """
         altitude_km = r_km - self.EARTH_RADIUS_KM
         v_kms = math.sqrt(self.MU_KM3_S2 / max(1.0, r_km))
@@ -73,17 +201,16 @@ class IBSDeorbitSimulator:
         # Atmospheric density (kg/m^3)
         rho = self.atmospheric_density(altitude_km)
 
-        # Drag deceleration on debris: a_drag = 0.5 * rho * v^2 * (Cd * A / m) in m/s^2
+        # Drag deceleration: a_drag = 0.5 * rho * v^2 * (Cd * A / m) in m/s^2
         a_drag_ms2 = 0.5 * rho * (v_ms ** 2) * (self.drag_coefficient_cd * self.drag_area_m2 / self.debris_mass_kg)
 
         # Ion beam deceleration: F_ion in mN -> (F_ion * 1e-3 N) / mass in m/s^2
         a_ion_ms2 = (self.ion_beam_force_mN * 1e-3) / self.debris_mass_kg
 
-        # Total tangential deceleration opposing velocity (m/s^2)
+        # Total tangential deceleration (m/s^2)
         a_total_ms2 = a_drag_ms2 + a_ion_ms2
 
         # Radial decay rate dr/dt = - 2 * sqrt(r^3 / mu) * a_total (in km/s)
-        # a_total in km/s^2 = a_total_ms2 * 1e-3
         a_total_kms2 = a_total_ms2 * 1e-3
         dr_dt_kms = -2.0 * math.sqrt((r_km ** 3) / self.MU_KM3_S2) * a_total_kms2
 
@@ -97,7 +224,6 @@ class IBSDeorbitSimulator:
         r_start = self.EARTH_RADIUS_KM + self.initial_altitude_km
         r_target = self.EARTH_RADIUS_KM + self.REENTRY_THRESHOLD_KM
 
-        # Adaptive time-stepper integration
         raw_times: List[float] = [0.0]
         raw_r: List[float] = [r_start]
         raw_theta: List[float] = [0.0]
@@ -106,18 +232,16 @@ class IBSDeorbitSimulator:
         current_t = 0.0
         current_theta = 0.0
 
-        # Run multi-step integration until re-entry altitude (100 km)
-        max_simulation_seconds = 100.0 * 365.25 * 86400.0  # 100 years max safety cutoff
+        max_simulation_seconds = 100.0 * 365.25 * 86400.0
 
         while current_r > r_target and current_t < max_simulation_seconds:
             v_kms, rho, a_drag, a_ion, dr_dt = self.compute_accelerations(current_r)
             decay_speed = abs(dr_dt)
 
             if decay_speed < 1e-12:
-                # Minimum forced descent rate for high altitude simulation
                 decay_speed = 1e-12
 
-            # Adaptive step size: don't change altitude by more than 2 km per sub-step
+            # Adaptive sub-step size
             dt = min(86400.0, max(10.0, 2.0 / decay_speed))
 
             # RK4 Integration for r
@@ -132,7 +256,6 @@ class IBSDeorbitSimulator:
             delta_r = (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
             next_r = current_r + delta_r
 
-            # Mean motion in rad/s
             omega = math.sqrt(self.MU_KM3_S2 / (current_r ** 3))
             current_theta += omega * dt
             current_t += dt
@@ -161,14 +284,11 @@ class IBSDeorbitSimulator:
 
             v_kms, rho, a_drag, a_ion, _ = self.compute_accelerations(r_km)
             
-            # Position coordinates in orbital plane (km)
             x_km = r_km * math.cos(theta_rad)
             y_km = r_km * math.sin(theta_rad)
 
-            # Orbital elements
             semi_major_axis_km = r_km
-            eccentricity = 0.0001 + 0.001 * (alt_km / self.initial_altitude_km)
-            inclination_deg = 51.6  # Standard representative LEO inclination
+            eccentricity = 0.0001 + 0.001 * (alt_km / max(1.0, self.initial_altitude_km))
             specific_energy_MJ_kg = - (self.MU_M3_S2 / (2.0 * r_km * 1000.0)) * 1e-6
             period_min = (2.0 * math.pi * math.sqrt((r_km ** 3) / self.MU_KM3_S2)) / 60.0
 
@@ -187,7 +307,7 @@ class IBSDeorbitSimulator:
                 "theta_rad": round(theta_rad, 4),
                 "semi_major_axis_km": round(semi_major_axis_km, 2),
                 "eccentricity": round(eccentricity, 6),
-                "inclination_deg": round(inclination_deg, 2),
+                "inclination_deg": round(self.inclination_deg, 2),
                 "specific_energy_MJ_kg": round(specific_energy_MJ_kg, 4),
                 "period_min": round(period_min, 2),
                 "drag_acceleration_um_s2": round(a_drag * 1e6, 4),
@@ -215,7 +335,14 @@ class IBSDeorbitSimulator:
         }
 
         mission_parameters = {
+            "debris_name": self.debris_name,
+            "norad_id": self.norad_id,
+            "rcs_size": self.rcs_size,
+            "debris_type": self.debris_type,
+            "inclination_deg": self.inclination_deg,
             "debris_mass_kg": self.debris_mass_kg,
+            "mass_estimated": self.mass_estimated,
+            "based_on": self.based_on,
             "initial_altitude_km": self.initial_altitude_km,
             "initial_speed_kms": self.initial_speed_kms,
             "ion_beam_force_mN": self.ion_beam_force_mN,

@@ -2374,7 +2374,7 @@ def add_debris_by_norad():
 def ibs_deorbit_simulation():
     """
     Run Ion Beam Shepherd (IBS) orbital decay simulation.
-    Accepts mission parameters (with defaults) and returns precomputed time-series trajectory,
+    Accepts mission parameters (or a specific norad_id) and returns precomputed time-series trajectory,
     orbital elements, and IBS performance summary.
     """
     try:
@@ -2384,18 +2384,60 @@ def ibs_deorbit_simulation():
             data = request.args.to_dict()
         
         from probability.ibs_deorbit import IBSDeorbitSimulator
+        from database.db_manager import get_db_manager
+        from database.models import DebrisObject
 
-        simulator = IBSDeorbitSimulator(
-            debris_mass_kg=float(data.get('debris_mass_kg', 500.0)),
-            initial_altitude_km=float(data.get('initial_altitude_km', 800.0)),
-            initial_speed_kms=float(data.get('initial_speed_kms', 7.35)),
-            ion_beam_force_mN=float(data.get('ion_beam_force_mN', 20.0)),
-            ion_mass_flow_rate_mg_s=float(data.get('ion_mass_flow_rate_mg_s', 1.00)),
-            ion_exhaust_velocity_kms=float(data.get('ion_exhaust_velocity_kms', 20.0)),
-            shepherd_mass_kg=float(data.get('shepherd_mass_kg', 1500.0)),
-            drag_area_m2=float(data.get('drag_area_m2', 2.0)),
-            drag_coefficient_cd=float(data.get('drag_coefficient_cd', 2.2))
-        )
+        norad_id = data.get('norad_id')
+        if norad_id:
+            norad_id = str(norad_id).strip()
+            db = get_db_manager()
+            session = db.get_session()
+            debris_record = session.query(DebrisObject).filter_by(norad_id=norad_id).first()
+
+            if not debris_record:
+                # Fallback to telemetry lookup if not directly in DB
+                telemetry = get_object_telemetry_info(norad_id, default_type='DEBRIS')
+                if telemetry.get('apogee') or telemetry.get('perigee') or telemetry.get('semi_major_axis'):
+                    debris_record = {
+                        'norad_id': norad_id,
+                        'name': telemetry.get('name', f'Object {norad_id}'),
+                        'type': telemetry.get('type', 'DEBRIS'),
+                        'rcs_size': telemetry.get('rcs_size', 'MEDIUM'),
+                        'apogee_km': telemetry.get('apogee'),
+                        'perigee_km': telemetry.get('perigee'),
+                        'inclination_deg': telemetry.get('inclination', 51.6),
+                    }
+                else:
+                    return jsonify({'error': f'Debris object with NORAD ID {norad_id} not found in catalog.'}), 404
+
+            # Extract any user parameter overrides
+            overrides = {}
+            if 'debris_mass_kg' in data and data['debris_mass_kg']:
+                overrides['debris_mass_kg'] = float(data['debris_mass_kg'])
+            if 'ion_beam_force_mN' in data and data['ion_beam_force_mN']:
+                overrides['ion_beam_force_mN'] = float(data['ion_beam_force_mN'])
+            if 'shepherd_mass_kg' in data and data['shepherd_mass_kg']:
+                overrides['shepherd_mass_kg'] = float(data['shepherd_mass_kg'])
+            if 'drag_area_m2' in data and data['drag_area_m2']:
+                overrides['drag_area_m2'] = float(data['drag_area_m2'])
+            if 'drag_coefficient_cd' in data and data['drag_coefficient_cd']:
+                overrides['drag_coefficient_cd'] = float(data['drag_coefficient_cd'])
+
+            simulator = IBSDeorbitSimulator.from_debris(debris_record, **overrides)
+        else:
+            simulator = IBSDeorbitSimulator(
+                debris_mass_kg=float(data.get('debris_mass_kg', 500.0)),
+                initial_altitude_km=float(data.get('initial_altitude_km', 800.0)),
+                initial_speed_kms=float(data.get('initial_speed_kms', 7.35)) if data.get('initial_speed_kms') else None,
+                ion_beam_force_mN=float(data.get('ion_beam_force_mN', 20.0)),
+                ion_mass_flow_rate_mg_s=float(data.get('ion_mass_flow_rate_mg_s', 1.00)),
+                ion_exhaust_velocity_kms=float(data.get('ion_exhaust_velocity_kms', 20.0)),
+                shepherd_mass_kg=float(data.get('shepherd_mass_kg', 1500.0)),
+                drag_area_m2=float(data.get('drag_area_m2', 2.0)),
+                drag_coefficient_cd=float(data.get('drag_coefficient_cd', 2.2)),
+                debris_name=data.get('debris_name', 'Generic Debris Target'),
+                inclination_deg=float(data.get('inclination_deg', 51.6))
+            )
 
         target_steps = int(data.get('target_steps', 600))
         result = simulator.simulate(target_steps=target_steps)
