@@ -7,6 +7,7 @@ import DebrisTracker from './components/DebrisTracker'
 import CollisionAnalysis from './components/CollisionAnalysis'
 import RiskRanking from './components/RiskRanking'
 import SatelliteRiskProfile from './components/SatelliteRiskProfile'
+import IBSDeorbitDashboard from './components/IBSDeorbitDashboard'
 import Alerts from './components/Alerts'
 
 import ErrorBoundary from './components/ErrorBoundary'
@@ -80,6 +81,13 @@ export default function App() {
           </button>
 
           <button
+            className={'nav-tab' + (activeTab === 'ibs' ? ' active' : '')}
+            onClick={() => setActiveTab('ibs')}
+          >
+            ⚡ IBS Deorbit
+          </button>
+
+          <button
             className={'nav-tab' + (activeTab === 'alerts' ? ' active' : '')}
             onClick={() => setActiveTab('alerts')}
           >
@@ -115,6 +123,10 @@ export default function App() {
 
           <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}>
             <SatelliteRiskProfile />
+          </div>
+
+          <div style={{ display: activeTab === 'ibs' ? 'block' : 'none' }}>
+            <IBSDeorbitDashboard />
           </div>
 
           <div style={{ display: activeTab === 'alerts' ? 'block' : 'none' }}>

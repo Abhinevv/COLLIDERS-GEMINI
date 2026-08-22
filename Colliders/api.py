@@ -2370,6 +2370,41 @@ def add_debris_by_norad():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/ibs-deorbit-simulation', methods=['POST', 'GET'])
+def ibs_deorbit_simulation():
+    """
+    Run Ion Beam Shepherd (IBS) orbital decay simulation.
+    Accepts mission parameters (with defaults) and returns precomputed time-series trajectory,
+    orbital elements, and IBS performance summary.
+    """
+    try:
+        if request.method == 'POST':
+            data = request.get_json(silent=True) or {}
+        else:
+            data = request.args.to_dict()
+        
+        from probability.ibs_deorbit import IBSDeorbitSimulator
+
+        simulator = IBSDeorbitSimulator(
+            debris_mass_kg=float(data.get('debris_mass_kg', 500.0)),
+            initial_altitude_km=float(data.get('initial_altitude_km', 800.0)),
+            initial_speed_kms=float(data.get('initial_speed_kms', 7.35)),
+            ion_beam_force_mN=float(data.get('ion_beam_force_mN', 20.0)),
+            ion_mass_flow_rate_mg_s=float(data.get('ion_mass_flow_rate_mg_s', 1.00)),
+            ion_exhaust_velocity_kms=float(data.get('ion_exhaust_velocity_kms', 20.0)),
+            shepherd_mass_kg=float(data.get('shepherd_mass_kg', 1500.0)),
+            drag_area_m2=float(data.get('drag_area_m2', 2.0)),
+            drag_coefficient_cd=float(data.get('drag_coefficient_cd', 2.2))
+        )
+
+        target_steps = int(data.get('target_steps', 600))
+        result = simulator.simulate(target_steps=target_steps)
+        return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'error': 'Endpoint not found'}), 404

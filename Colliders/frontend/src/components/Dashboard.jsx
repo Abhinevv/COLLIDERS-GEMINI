@@ -95,12 +95,16 @@ export default function Dashboard({ onNavigate }) {
             <span className="action-icon">🔍</span>
             <span className="action-text">Search & Add Debris</span>
           </button>
+          <button className="action-card" onClick={() => onNavigate('ibs')}>
+            <span className="action-icon">⚡</span>
+            <span className="action-text">IBS Deorbit Simulation</span>
+          </button>
           <button className="action-card" onClick={() => window.open('/api/visualization/', '_blank')}>
             <span className="action-icon">📊</span>
             <span className="action-text">View Visualizations</span>
           </button>
           <button className="action-card" onClick={() => onNavigate('collision')}>
-            <span className="action-icon">⚡</span>
+            <span className="action-icon">💥</span>
             <span className="action-text">Run Collision Analysis</span>
           </button>
           <button className="action-card" onClick={() => window.open('/api/docs', '_blank')}>
