@@ -227,3 +227,28 @@ export async function simulateManeuver(payload) {
   if (!res.ok) throw new Error(`Simulate maneuver failed: ${res.status}`)
   return res.json()
 }
+
+export async function getAllSpaceDebris() {
+  const res = await fetch(`${BASE}/api/space_debris/all`)
+  if (!res.ok) throw new Error(`Get all debris failed: ${res.status}`)
+  return res.json()
+}
+
+export async function populateSatellites() {
+  const res = await fetch(`${BASE}/api/populate_satellites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) throw new Error(`Populate satellites failed: ${res.status}`)
+  return res.json()
+}
+
+export async function refreshTLECache() {
+  const res = await fetch(`${BASE}/api/tle_cache/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) throw new Error(`Refresh TLE cache failed: ${res.status}`)
+  return res.json()
+}
+

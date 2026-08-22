@@ -110,7 +110,7 @@ export default function App() {
           </div>
 
           <div style={{ display: activeTab === 'debris' ? 'block' : 'none' }}>
-            <DebrisTracker />
+            <DebrisTracker onNavigate={setActiveTab} />
           </div>
 
           <div style={{ display: activeTab === 'collision' ? 'block' : 'none' }}>

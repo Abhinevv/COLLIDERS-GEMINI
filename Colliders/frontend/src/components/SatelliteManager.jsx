@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { listManagedSatellites, addManagedSatellite, removeManagedSatellite } from '../api'
+import { useEffect, useState, useMemo } from 'react'
+import { listManagedSatellites, addManagedSatellite, removeManagedSatellite, populateSatellites, refreshTLECache } from '../api'
 
 function formatDate(iso) {
   if (!iso) return 'N/A'
@@ -10,9 +10,11 @@ export default function SatelliteManager() {
   const [activeTab, setActiveTab] = useState('satellites')
   const [satellites, setSatellites] = useState([])
   const [loading, setLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
   const [error, setError] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
   const [expanded, setExpanded] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [satNorad, setSatNorad] = useState('')
   const [satName, setSatName] = useState('')
@@ -59,16 +61,51 @@ export default function SatelliteManager() {
     } catch (err) { setError(err.message) }
   }
 
+  async function handlePopulateFleet() {
+    setActionLoading(true); setError(null)
+    try {
+      const res = await populateSatellites()
+      showSuccess(`Populated fleet successfully (${res.count || res.inserted || 'updated'} satellites)`)
+      loadSatellites()
+    } catch (err) { setError(err.message) }
+    finally { setActionLoading(false) }
+  }
+
+  async function handleRefreshTLEs() {
+    setActionLoading(true); setError(null)
+    try {
+      await refreshTLECache()
+      showSuccess('All fleet TLE ephemeris data successfully refreshed from Space-Track cache')
+      loadSatellites()
+    } catch (err) { setError(err.message) }
+    finally { setActionLoading(false) }
+  }
+
+  const filteredSatellites = useMemo(() => {
+    if (!searchQuery.trim()) return satellites
+    const q = searchQuery.toLowerCase()
+    return satellites.filter(s =>
+      (s.name && s.name.toLowerCase().includes(q)) ||
+      (s.norad_id && String(s.norad_id).includes(q)) ||
+      (s.type && s.type.toLowerCase().includes(q)) ||
+      (s.operator && s.operator.toLowerCase().includes(q))
+    )
+  }, [satellites, searchQuery])
+
   return (
     <div className="satellite-manager">
       <div className="manager-header">
-        <h2>🛰️ Satellite Manager</h2>
-        <p>Manage tracked satellites and add objects by NORAD ID</p>
+        <h2>🛰️ Satellite Fleet Manager</h2>
+        <p>Manage tracked satellites, monitor ephemeris epochs, and add objects by NORAD ID</p>
       </div>
 
       <div className="view-tabs">
-        <button className={`view-tab ${activeTab === 'satellites' ? 'active' : ''}`} onClick={() => setActiveTab('satellites')}>🛰️ Tracked Satellites</button>
-        <button className={`view-tab ${activeTab === 'add-satellite' ? 'active' : ''}`} onClick={() => setActiveTab('add-satellite')}>➕ Add Satellite</button>
+        <button className={`view-tab ${activeTab === 'satellites' ? 'active' : ''}`} onClick={() => setActiveTab('satellites')}>
+          🛰️ Tracked Fleet ({satellites.length})
+        </button>
+        <button className={`view-tab ${activeTab === 'add-satellite' ? 'active' : ''}`} onClick={() => setActiveTab('add-satellite')}>
+          ➕ Add Satellite
+        </button>
       </div>
 
       {successMsg && <div className="success-message">✅ {successMsg}</div>}
@@ -76,19 +113,56 @@ export default function SatelliteManager() {
 
       {activeTab === 'satellites' && (
         <div className="satellites-section">
-          <div className="section-info">
-            <h3>Tracked Satellites ({satellites.length})</h3>
-            <button className="refresh-btn" onClick={loadSatellites} disabled={loading}>
-              {loading ? '⏳ Loading...' : '🔄 Refresh'}
-            </button>
+          
+          {/* Controls Bar: Search & Actions */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ flex: 1, minWidth: '240px', maxWidth: '400px' }}>
+              <input
+                type="text"
+                className="search-input"
+                placeholder="🔍 Filter fleet by name, NORAD, operator..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '100%' }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                className="refresh-btn"
+                onClick={handleRefreshTLEs}
+                disabled={loading || actionLoading}
+                style={{ background: 'rgba(77, 163, 255, 0.15)', borderColor: '#4da3ff', color: '#4da3ff' }}
+                title="Sync all satellites with latest TLEs"
+              >
+                {actionLoading ? '⏳ Syncing...' : '📡 Sync TLEs'}
+              </button>
+
+              <button
+                className="refresh-btn"
+                onClick={handlePopulateFleet}
+                disabled={loading || actionLoading}
+                style={{ background: 'rgba(61, 220, 132, 0.15)', borderColor: '#3ddc84', color: '#3ddc84' }}
+                title="Populate standard satellite fleet"
+              >
+                🚀 Populate Fleet
+              </button>
+
+              <button className="refresh-btn" onClick={loadSatellites} disabled={loading}>
+                {loading ? '⏳ Loading...' : '🔄 Refresh'}
+              </button>
+            </div>
           </div>
+
           {loading ? (
-            <div className="loading-container"><div className="spinner"></div><p>Loading satellites...</p></div>
-          ) : satellites.length === 0 ? (
-            <div className="empty-message">No satellites tracked yet. Add one using the "Add Satellite" tab.</div>
+            <div className="loading-container"><div className="spinner"></div><p>Loading satellite fleet...</p></div>
+          ) : filteredSatellites.length === 0 ? (
+            <div className="empty-message">
+              {satellites.length === 0 ? 'No satellites tracked yet. Click "Populate Fleet" or add one using the "Add Satellite" tab.' : 'No satellites match your search filter.'}
+            </div>
           ) : (
             <div className="sat-cards-grid">
-              {satellites.map((sat, idx) => {
+              {filteredSatellites.map((sat, idx) => {
                 const isOpen = expanded === (sat.norad_id || idx)
                 return (
                   <div key={sat.norad_id || idx} className={`sat-card ${isOpen ? 'sat-card--open' : ''}`}>
@@ -201,6 +275,7 @@ export default function SatelliteManager() {
             <h4>Quick NORAD Examples</h4>
             <div className="hint-grid">
               {[
+                { id: '25544', name: 'ISS (ZARYA)', type: 'Space Station' },
                 { id: '44804', name: 'Cartosat-3', type: 'Earth Observation & Radar Imaging' },
                 { id: '51656', name: 'EOS-04 (RISAT-1A)', type: 'Earth Observation & Radar Imaging' },
                 { id: '58955', name: 'INSAT-3DS', type: 'Weather & Meteorology' },
