@@ -24,10 +24,10 @@ export default function Toast() {
 
   const getColor = (type) => {
     switch (type) {
-      case 'success': return '#00cc88';
-      case 'error': return '#ff4444';
-      case 'warning': return '#ffbb00';
-      default: return '#667eea';
+      case 'success': return '#3ddc84';
+      case 'error': return '#ff4d4d';
+      case 'warning': return '#ffaa33';
+      default: return '#4da3ff';
     }
   };
 

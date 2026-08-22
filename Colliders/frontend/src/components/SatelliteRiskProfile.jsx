@@ -183,19 +183,19 @@ export default function SatelliteRiskProfile() {
     const d = missDistance !== null && missDistance !== undefined ? (typeof missDistance === 'number' ? missDistance : parseFloat(missDistance) || 999) : 999
 
     if (p >= 1e-4 || d < 1.0) {
-      return { level: 'CRITICAL', color: '#ff4444', icon: '🚨' }
+      return { level: 'CRITICAL', color: '#ff4d4d', icon: '🚨' }
     }
     if (p >= 1e-7 || d <= 5.0) {
-      return { level: 'WARNING', color: '#ffaa00', icon: '⚠️' }
+      return { level: 'WARNING', color: '#ffaa33', icon: '⚠️' }
     }
-    return { level: 'SAFE', color: '#00e676', icon: '✅' }
+    return { level: 'SAFE', color: '#3ddc84', icon: '✅' }
   }
 
   function getThreatLevelColor(score) {
     const s = typeof score === 'number' ? score : parseFloat(score) || 0
-    if (s >= 80) return '#ff4444' // CRITICAL / RED (80 - 100)
-    if (s >= 40) return '#ffaa00' // WARNING / YELLOW (40 - 79)
-    return '#00e676'              // SAFE / GREEN (0 - 39)
+    if (s >= 80) return '#ff4d4d' // CRITICAL / RED (80 - 100)
+    if (s >= 40) return '#ffaa33' // WARNING / YELLOW (40 - 79)
+    return '#3ddc84'              // SAFE / GREEN (0 - 39)
   }
 
   const selectedSatObj = satellites.find((s) => s.norad_id === selectedSatellite)
@@ -278,28 +278,28 @@ export default function SatelliteRiskProfile() {
           boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
         }}>
           <div>
-            <div style={{ color: '#8892b0', fontSize: '0.85rem' }}>Satellite Name</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#64ffda' }}>{satelliteMeta.name}</div>
-            <div style={{ color: '#a8b2d1', fontSize: '0.8rem' }}>{selectedSatObj?.operator || satelliteMeta.operator}</div>
+            <div style={{ color: '#8aafd4', fontSize: '0.85rem' }}>Satellite Name</div>
+            <div style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#4da3ff' }}>{satelliteMeta.name}</div>
+            <div style={{ color: '#8aafd4', fontSize: '0.8rem' }}>{selectedSatObj?.operator || satelliteMeta.operator}</div>
           </div>
           <div>
-            <div style={{ color: '#8892b0', fontSize: '0.85rem' }}>Orbital Altitude</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#fff' }}>{satelliteMeta.altitude_km} km</div>
-            <div style={{ color: '#a8b2d1', fontSize: '0.8rem' }}>Inclination: {satelliteMeta.inclination_deg}°</div>
+            <div style={{ color: '#8aafd4', fontSize: '0.85rem' }}>Orbital Altitude</div>
+            <div style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#f0f6ff' }}>{satelliteMeta.altitude_km} km</div>
+            <div style={{ color: '#8aafd4', fontSize: '0.8rem' }}>Inclination: {satelliteMeta.inclination_deg}°</div>
           </div>
           <div>
-            <div style={{ color: '#8892b0', fontSize: '0.85rem' }}>Orbital Shell Regime</div>
-            <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#ccd6f6' }}>{orbitalRegime}</div>
+            <div style={{ color: '#8aafd4', fontSize: '0.85rem' }}>Orbital Shell Regime</div>
+            <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#f0f6ff' }}>{orbitalRegime}</div>
           </div>
           <div>
-            <div style={{ color: '#8892b0', fontSize: '0.85rem' }}>Total Intersecting Debris</div>
-            <div style={{ fontSize: '1.35rem', fontWeight: 'bold', color: '#ff79c6' }}>
-              {totalThreats} <span style={{ fontSize: '0.85rem', color: '#8892b0' }}>objects</span>
+            <div style={{ color: '#8aafd4', fontSize: '0.85rem' }}>Total Intersecting Debris</div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 'bold', color: '#ffaa33' }}>
+              {totalThreats} <span style={{ fontSize: '0.85rem', color: '#8aafd4' }}>objects</span>
             </div>
-            <div style={{ color: '#a8b2d1', fontSize: '0.8rem' }}>Loaded top: {debrisList.length}</div>
+            <div style={{ color: '#8aafd4', fontSize: '0.8rem' }}>Loaded top: {debrisList.length}</div>
           </div>
           <div>
-            <div style={{ color: '#8892b0', fontSize: '0.85rem' }}>Shell Congestion Level</div>
+            <div style={{ color: '#8aafd4', fontSize: '0.85rem' }}>Shell Congestion Level</div>
             <div style={{ marginTop: '4px' }}>
               <span style={{
                 backgroundColor: getThreatLevelColor(threatLevel),
@@ -317,7 +317,7 @@ export default function SatelliteRiskProfile() {
       )}
 
       {error && (
-        <div className="error-message" style={{ padding: '12px', background: 'rgba(244, 67, 54, 0.2)', border: '1px solid #f44336', borderRadius: '8px', margin: '15px 0' }}>
+        <div className="error-message" style={{ padding: '12px', background: 'rgba(255, 77, 77, 0.15)', border: '1px solid #ff4d4d', borderRadius: '8px', margin: '15px 0' }}>
           <strong>Error:</strong> {error}
         </div>
       )}
@@ -325,10 +325,10 @@ export default function SatelliteRiskProfile() {
       {analyzing && (
         <div className="progress-container" style={{ margin: '20px 0' }}>
           <h3>Scanning Orbit for Conjunctions</h3>
-          <div className="progress-bar" style={{ height: '10px', background: '#233554', borderRadius: '5px', overflow: 'hidden' }}>
-            <div className="progress-fill" style={{ width: `${progress}%`, height: '100%', background: '#64ffda', transition: 'width 0.3s' }}></div>
+          <div className="progress-bar" style={{ height: '10px', background: 'rgba(77, 163, 255, 0.15)', borderRadius: '5px', overflow: 'hidden' }}>
+            <div className="progress-fill" style={{ width: `${progress}%`, height: '100%', background: '#4da3ff', transition: 'width 0.3s' }}></div>
           </div>
-          <p style={{ marginTop: '8px', color: '#8892b0' }}>
+          <p style={{ marginTop: '8px', color: '#8aafd4' }}>
             {progress}% complete — Propagating trajectory of {selectedSatObj?.name} against {debrisList.length} orbital debris candidates
           </p>
         </div>
@@ -340,17 +340,17 @@ export default function SatelliteRiskProfile() {
           <div className="results-summary">
             <h3>Collision Risk Assessment: {selectedSatObj?.name}</h3>
             <div className="summary-stats" style={{ display: 'flex', gap: '15px', margin: '15px 0' }}>
-              <div className="stat-card threat" style={{ padding: '15px', borderRadius: '8px', background: 'rgba(255, 87, 34, 0.15)', border: '1px solid #ff5722', flex: 1 }}>
-                <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ff5722' }}>{threatsDetected}</div>
-                <div className="stat-label" style={{ color: '#8892b0' }}>Conjunction Events</div>
+              <div className="stat-card threat" style={{ padding: '15px', borderRadius: '8px', background: 'rgba(255, 77, 77, 0.15)', border: '1px solid #ff4d4d', flex: 1 }}>
+                <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ff4d4d' }}>{threatsDetected}</div>
+                <div className="stat-label" style={{ color: '#8aafd4' }}>Conjunction Events</div>
               </div>
-              <div className="stat-card analyzed" style={{ padding: '15px', borderRadius: '8px', background: 'rgba(100, 255, 218, 0.1)', border: '1px solid #64ffda', flex: 1 }}>
-                <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#64ffda' }}>{results.length}</div>
-                <div className="stat-label" style={{ color: '#8892b0' }}>Objects Analyzed</div>
+              <div className="stat-card analyzed" style={{ padding: '15px', borderRadius: '8px', background: 'rgba(77, 163, 255, 0.1)', border: '1px solid #4da3ff', flex: 1 }}>
+                <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#4da3ff' }}>{results.length}</div>
+                <div className="stat-label" style={{ color: '#8aafd4' }}>Objects Analyzed</div>
               </div>
-              <div className="stat-card safe" style={{ padding: '15px', borderRadius: '8px', background: 'rgba(76, 175, 80, 0.15)', border: '1px solid #4caf50', flex: 1 }}>
-                <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#4caf50' }}>{results.length - threatsDetected}</div>
-                <div className="stat-label" style={{ color: '#8892b0' }}>Safe Clearances</div>
+              <div className="stat-card safe" style={{ padding: '15px', borderRadius: '8px', background: 'rgba(61, 220, 132, 0.15)', border: '1px solid #3ddc84', flex: 1 }}>
+                <div className="stat-value" style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#3ddc84' }}>{results.length - threatsDetected}</div>
+                <div className="stat-label" style={{ color: '#8aafd4' }}>Safe Clearances</div>
               </div>
             </div>
 
@@ -416,26 +416,26 @@ export default function SatelliteRiskProfile() {
                     const badge = getRiskBadge(res.probability, res.min_distance)
                     const threatColor = getThreatLevelColor(res.threat_score)
                     return (
-                      <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                        <td style={{ padding: '10px', color: '#64ffda' }}>#{idx + 1}</td>
+                      <tr key={idx} style={{ borderBottom: '1px solid rgba(77, 163, 255, 0.15)' }}>
+                        <td style={{ padding: '10px', color: '#4da3ff' }}>#{idx + 1}</td>
                         <td style={{ padding: '10px' }}>
                           <div style={{ fontWeight: '600', color: '#fff' }}>{res.debris_name}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#8892b0' }}>NORAD: {res.debris_id}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#8aafd4' }}>NORAD: {res.debris_id}</div>
                         </td>
                         <td style={{ padding: '10px' }}>
                           <span style={{ fontSize: '0.8rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)' }}>
                             {res.debris_size || 'MEDIUM'}
                           </span>
                         </td>
-                        <td style={{ padding: '10px', color: '#ccd6f6' }}>{res.alt_diff != null ? `${res.alt_diff} km` : '—'}</td>
-                        <td style={{ padding: '10px', color: '#ccd6f6' }}>{res.inc_diff != null ? `${res.inc_diff}°` : '—'}</td>
+                        <td style={{ padding: '10px', color: '#f0f6ff' }}>{res.alt_diff != null ? `${res.alt_diff} km` : '—'}</td>
+                        <td style={{ padding: '10px', color: '#f0f6ff' }}>{res.inc_diff != null ? `${res.inc_diff}°` : '—'}</td>
                         <td style={{ padding: '10px', color: threatColor, fontWeight: 'bold' }}>{res.threat_score != null ? res.threat_score : '—'}</td>
                         <td style={{ padding: '10px' }}>
-                          <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(100,255,218,0.12)', color: '#64ffda', border: '1px solid rgba(100,255,218,0.25)' }}>
+                          <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(77,163,255,0.15)', color: '#4da3ff', border: '1px solid rgba(77,163,255,0.3)' }}>
                             ⚡ PINN (J2)
                           </span>
                         </td>
-                        <td style={{ padding: '10px', fontFamily: 'monospace', color: '#64ffda', fontWeight: 'bold' }}>
+                        <td style={{ padding: '10px', fontFamily: 'monospace', color: '#4da3ff', fontWeight: 'bold' }}>
                           {formatProbability(res.probability, res)}
                         </td>
                         <td style={{ padding: '10px' }}>
@@ -456,12 +456,12 @@ export default function SatelliteRiskProfile() {
                               href={`http://localhost:5000${res.visualization_url}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              style={{ color: '#64ffda', textDecoration: 'none', fontWeight: 'bold', fontSize: '0.85rem' }}
+                              style={{ color: '#4da3ff', textDecoration: 'none', fontWeight: 'bold', fontSize: '0.85rem' }}
                             >
                               📊 3D View
                             </a>
                           ) : (
-                            <span style={{ color: '#555' }}>—</span>
+                            <span style={{ color: '#8aafd4' }}>—</span>
                           )}
                         </td>
                       </tr>
@@ -478,10 +478,10 @@ export default function SatelliteRiskProfile() {
         <div className="empty-state" style={{ textAlign: 'center', padding: '40px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', marginTop: '20px' }}>
           <div style={{ fontSize: '3rem' }}>🛰️</div>
           <h3>Orbital Shell Conjunction Scanner</h3>
-          <p style={{ color: '#8892b0' }}>
+          <p style={{ color: '#8aafd4' }}>
             Select any satellite from the fleet to view its specific orbital regime, dynamic debris count, and run Monte Carlo collision risk simulations.
           </p>
-          <p style={{ color: '#64ffda', fontSize: '0.9rem', marginTop: '10px' }}>
+          <p style={{ color: '#4da3ff', fontSize: '0.9rem', marginTop: '10px' }}>
             Currently loaded: <strong>{totalThreats} intersecting debris objects</strong> for {selectedSatObj?.name} in {orbitalRegime}.
           </p>
         </div>

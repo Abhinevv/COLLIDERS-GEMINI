@@ -230,11 +230,11 @@ export default function RiskRanking() {
   }
 
   function getRiskLevel(probability) {
-    if (probability === 0) return { level: 'SAFE', color: '#4caf50', icon: '✅' }
-    if (probability < 0.001) return { level: 'LOW', color: '#8bc34a', icon: '⚠️' }
-    if (probability < 0.01) return { level: 'MODERATE', color: '#ff9800', icon: '⚠️' }
-    if (probability < 0.1) return { level: 'HIGH', color: '#ff5722', icon: '🔴' }
-    return { level: 'CRITICAL', color: '#f44336', icon: '🚨' }
+    if (probability === 0) return { level: 'SAFE', color: '#3ddc84', icon: '✅' }
+    if (probability < 0.001) return { level: 'LOW', color: '#4da3ff', icon: '⚠️' }
+    if (probability < 0.01) return { level: 'MODERATE', color: '#ffaa33', icon: '⚠️' }
+    if (probability < 0.1) return { level: 'HIGH', color: '#ffaa33', icon: '🔴' }
+    return { level: 'CRITICAL', color: '#ff4d4d', icon: '🚨' }
   }
 
   function renderResults(results, mode) {
