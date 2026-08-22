@@ -2211,6 +2211,7 @@ def get_recent_debris():
                 'status': 'success',
                 'count': len(results),
                 'time_range_days': days,
+                'debris': results,
                 'recent_debris': results,
                 'source': 'database'
             }), 200
@@ -2222,6 +2223,49 @@ def get_recent_debris():
         import traceback
         print(f"Error in get_recent_debris: {e}")
         print(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/space_debris/all', methods=['GET'])
+def get_all_debris():
+    """
+    Get all cataloged debris objects from database for comprehensive catalog selection
+    """
+    try:
+        from database.db_manager import get_db_manager
+        from database.models import DebrisObject
+        
+        db = get_db_manager()
+        session = db.get_session()
+        
+        try:
+            debris_list = session.query(DebrisObject).order_by(DebrisObject.name.asc()).all()
+            results = []
+            for obj in debris_list:
+                results.append({
+                    'norad_id': obj.norad_id,
+                    'name': obj.name or f'Debris {obj.norad_id}',
+                    'type': obj.type or 'DEBRIS',
+                    'country': obj.country,
+                    'apogee_km': obj.apogee_km,
+                    'perigee_km': obj.perigee_km,
+                    'inclination_deg': obj.inclination_deg,
+                    'period_minutes': obj.period_minutes,
+                    'rcs_size': obj.rcs_size
+                })
+            
+            return jsonify({
+                'status': 'success',
+                'count': len(results),
+                'debris': results,
+                'recent_debris': results,
+                'source': 'database'
+            }), 200
+            
+        finally:
+            session.close()
+            
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 

@@ -5,10 +5,11 @@ export default function IBSDeorbitDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Debris catalog state
+  // Full Debris Catalog state (826 objects)
   const [debrisCatalog, setDebrisCatalog] = useState([])
   const [selectedDebrisNorad, setSelectedDebrisNorad] = useState('')
   const [catalogSearch, setCatalogSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('ALL')
 
   // Simulation playback state
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -40,21 +41,28 @@ export default function IBSDeorbitDashboard() {
     drag_coefficient_cd: 2.2,
   })
 
-  // Load debris catalog on mount
+  // Load complete debris catalog on mount
   useEffect(() => {
-    loadDebrisCatalog()
+    loadFullDebrisCatalog()
     fetchSimulation()
   }, [])
 
-  async function loadDebrisCatalog() {
+  async function loadFullDebrisCatalog() {
     try {
-      const res = await fetch('http://localhost:5000/api/space_debris/recent?limit=100')
+      const res = await fetch('http://localhost:5000/api/space_debris/all')
       if (res.ok) {
         const data = await res.json()
-        setDebrisCatalog(data.debris || [])
+        setDebrisCatalog(data.debris || data.recent_debris || [])
+      } else {
+        // Fallback to recent with high limit
+        const fallbackRes = await fetch('http://localhost:5000/api/space_debris/recent?limit=2000')
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json()
+          setDebrisCatalog(fallbackData.debris || fallbackData.recent_debris || [])
+        }
       }
     } catch (err) {
-      console.warn('Could not load debris catalog for picker:', err)
+      console.warn('Could not load full debris catalog:', err)
     }
   }
 
@@ -93,7 +101,6 @@ export default function IBSDeorbitDashboard() {
   function handleSelectDebris(noradId) {
     setSelectedDebrisNorad(noradId)
     if (!noradId) {
-      // Revert to manual defaults
       fetchSimulation({
         debris_mass_kg: 500,
         initial_altitude_km: 800,
@@ -150,16 +157,31 @@ export default function IBSDeorbitDashboard() {
     return simulationData.time_series[currentIndex] || simulationData.time_series[0]
   }, [simulationData, currentIndex])
 
-  // Filtered debris catalog for dropdown
+  // Filtered debris list for catalog picker
   const filteredDebris = useMemo(() => {
-    if (!catalogSearch.trim()) return debrisCatalog
-    const q = catalogSearch.toLowerCase()
-    return debrisCatalog.filter(
-      d => (d.name && d.name.toLowerCase().includes(q)) ||
-           (d.norad_id && String(d.norad_id).includes(q)) ||
-           (d.type && d.type.toLowerCase().includes(q))
-    )
-  }, [debrisCatalog, catalogSearch])
+    let list = debrisCatalog
+
+    if (categoryFilter !== 'ALL') {
+      list = list.filter(d => {
+        const typeStr = (d.type || '').toUpperCase()
+        if (categoryFilter === 'FRAGMENT') return typeStr.includes('FRAG') || typeStr.includes('DEB')
+        if (categoryFilter === 'ROCKET') return typeStr.includes('ROCKET') || typeStr.includes('R/B') || typeStr.includes('STAGE')
+        if (categoryFilter === 'DEFUNCT') return typeStr.includes('DEFUNCT') || typeStr.includes('PAYLOAD') || typeStr.includes('SAT')
+        return true
+      })
+    }
+
+    if (catalogSearch.trim()) {
+      const q = catalogSearch.toLowerCase()
+      list = list.filter(d =>
+        (d.name && d.name.toLowerCase().includes(q)) ||
+        (d.norad_id && String(d.norad_id).includes(q)) ||
+        (d.type && d.type.toLowerCase().includes(q))
+      )
+    }
+
+    return list
+  }, [debrisCatalog, catalogSearch, categoryFilter])
 
   // Draw main orbital view on Canvas
   useEffect(() => {
@@ -431,25 +453,79 @@ export default function IBSDeorbitDashboard() {
       </div>
 
       {/* 2. Main Top Grid: Left Sidebar + Center Orbit Canvas */}
-      <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '14px', marginBottom: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '14px', marginBottom: '14px' }}>
         
         {/* Left Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           
-          {/* Debris Target Selector Card */}
+          {/* Debris Target Selector Card (Full Catalog with 826 Debris) */}
           <div className="stat-card" style={{ padding: '12px 14px', border: '1px solid rgba(100, 255, 218, 0.4)', background: 'rgba(4, 16, 24, 0.95)' }}>
-            <h3 style={{ color: '#64ffda', fontSize: '0.82rem', letterSpacing: '1.5px', borderBottom: '1px solid rgba(100, 255, 218, 0.25)', paddingBottom: '5px', marginBottom: '8px' }}>
-              🎯 SELECT TARGET DEBRIS OBJECT
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(100, 255, 218, 0.25)', paddingBottom: '5px', marginBottom: '8px' }}>
+              <h3 style={{ color: '#64ffda', fontSize: '0.82rem', letterSpacing: '1.5px', margin: 0 }}>
+                🎯 SELECT TARGET DEBRIS
+              </h3>
+              <span style={{ fontSize: '0.7rem', color: '#888' }}>
+                {debrisCatalog.length} Total in Catalog
+              </span>
+            </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              
+              {/* Search Filter Input */}
+              <input
+                type="text"
+                placeholder="🔍 Filter by name or NORAD ID..."
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(2, 6, 13, 0.9)',
+                  border: '1px solid rgba(77, 163, 255, 0.3)',
+                  color: '#ffffff',
+                  padding: '6px 10px',
+                  borderRadius: '5px',
+                  fontSize: '0.8rem',
+                  outline: 'none'
+                }}
+              />
+
+              {/* Category Filter Pills */}
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[
+                  { key: 'ALL', label: `All (${debrisCatalog.length})` },
+                  { key: 'FRAGMENT', label: 'Fragments' },
+                  { key: 'ROCKET', label: 'Rocket Bodies' },
+                  { key: 'DEFUNCT', label: 'Defunct Sats' },
+                ].map(cat => (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    style={{
+                      flex: 1,
+                      background: categoryFilter === cat.key ? 'rgba(77, 163, 255, 0.3)' : 'rgba(255, 255, 255, 0.05)',
+                      border: categoryFilter === cat.key ? '1px solid #4da3ff' : '1px solid rgba(255, 255, 255, 0.1)',
+                      color: categoryFilter === cat.key ? '#ffffff' : '#aaa',
+                      padding: '3px 4px',
+                      borderRadius: '4px',
+                      fontSize: '0.68rem',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onClick={() => setCategoryFilter(cat.key)}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Comprehensive Dropdown List with all 826 debris */}
               <select
                 value={selectedDebrisNorad}
                 onChange={(e) => handleSelectDebris(e.target.value)}
                 style={{
                   width: '100%',
-                  background: 'rgba(2, 6, 13, 0.9)',
-                  border: '1px solid rgba(77, 163, 255, 0.4)',
+                  background: 'rgba(2, 6, 13, 0.95)',
+                  border: '1px solid rgba(100, 255, 218, 0.4)',
                   color: '#ffffff',
                   padding: '8px 10px',
                   borderRadius: '6px',
@@ -459,8 +535,8 @@ export default function IBSDeorbitDashboard() {
                 }}
               >
                 <option value="">⚙️ Custom / Manual Parameters (800 km Default)</option>
-                {debrisCatalog.map((d) => {
-                  const avgAlt = d.apogee_km && d.perigee_km ? Math.round((d.apogee_km + d.perigee_km) / 2) : 800
+                {filteredDebris.map((d) => {
+                  const avgAlt = d.apogee_km && d.perigee_km ? Math.round((d.apogee_km + d.perigee_km) / 2) : (d.apogee_km || 800)
                   return (
                     <option key={d.norad_id} value={d.norad_id}>
                       {d.name} ({d.norad_id} • {d.type || 'DEBRIS'} • {avgAlt}km • {d.rcs_size || 'MED'})
@@ -469,7 +545,16 @@ export default function IBSDeorbitDashboard() {
                 })}
               </select>
 
-              {/* Quick Select Chips */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#888' }}>
+                <span>Showing {filteredDebris.length} debris</span>
+                {selectedDebrisNorad && (
+                  <span style={{ color: '#64ffda', cursor: 'pointer' }} onClick={() => handleSelectDebris('')}>
+                    Reset to Default ↺
+                  </span>
+                )}
+              </div>
+
+              {/* Quick Select Chips for Featured Debris */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
                 {[
                   { id: '44120', name: 'PSLV C-45 DEB' },
@@ -867,7 +952,6 @@ export default function IBSDeorbitDashboard() {
 
               return (
                 <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', height: '100%' }}>
-                  {/* Grid lines */}
                   <line x1={padX} y1={padY} x2={padX} y2={svgH - padY} stroke="rgba(255,255,255,0.12)" />
                   <line x1={padX} y1={svgH - padY} x2={svgW - 10} y2={svgH - padY} stroke="rgba(255,255,255,0.12)" />
 
