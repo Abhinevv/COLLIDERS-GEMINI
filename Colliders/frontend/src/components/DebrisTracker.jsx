@@ -169,8 +169,38 @@ export default function DebrisTracker() {
             </div>
           )}
           <div className="norad-hint">
-            <h4>How to find NORAD IDs</h4>
-            <p>Search for debris objects on <a href="https://www.space-track.org" target="_blank" rel="noopener noreferrer">Space-Track.org</a> or use the Search tab above to browse and find NORAD IDs.</p>
+            <h4>Quick Debris Examples</h4>
+            <div className="hint-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
+              {[
+                { id: '44120', name: 'PSLV C-45 DEB (🔹 Fragment)' },
+                { id: '44858', name: 'PSLV R/B Stage-4 (🚀 Rocket Body)' },
+                { id: '28944', name: 'Resourcesat-1 DEB (🔹 Fragment)' },
+                { id: '44100', name: 'Microsat-R DEB (🔹 Fragment)' },
+                { id: '27386', name: 'ENVISAT Derelict (⚫ Defunct Sat)' },
+                { id: '33760', name: 'Cosmos 2251 DEB (🔹 Fragment)' },
+              ].map(d => (
+                <button 
+                  key={d.id} 
+                  type="button"
+                  className="hint-chip" 
+                  style={{
+                    background: 'rgba(100, 255, 218, 0.1)',
+                    border: '1px solid rgba(100, 255, 218, 0.3)',
+                    color: '#64ffda',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem'
+                  }}
+                  onClick={() => setDebrisNorad(d.id)}
+                >
+                  {d.name} ({d.id})
+                </button>
+              ))}
+            </div>
+            <p style={{ marginTop: '12px', fontSize: '0.85rem', color: '#888' }}>
+              Or enter any catalog ID from the database / <a href="https://www.space-track.org" target="_blank" rel="noopener noreferrer" style={{ color: '#64ffda' }}>Space-Track.org</a>.
+            </p>
           </div>
         </div>
       )}

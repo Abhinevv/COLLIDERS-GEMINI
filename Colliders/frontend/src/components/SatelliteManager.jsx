@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { listManagedSatellites, addManagedSatellite, removeManagedSatellite } from '../api'
 
 function formatDate(iso) {
@@ -169,32 +169,46 @@ export default function SatelliteManager() {
           <form onSubmit={handleAddSatellite} className="add-form">
             <div className="form-group">
               <label>NORAD ID *</label>
-              <input type="text" value={satNorad} onChange={e => setSatNorad(e.target.value)} placeholder="e.g. 25544 (ISS)" className="search-input" required />
+              <input type="text" value={satNorad} onChange={e => setSatNorad(e.target.value)} placeholder="e.g. 44804 (Cartosat-3)" className="search-input" required />
             </div>
             <div className="form-group">
               <label>Name (optional)</label>
-              <input type="text" value={satName} onChange={e => setSatName(e.target.value)} placeholder="e.g. ISS (ZARYA)" className="search-input" />
+              <input type="text" value={satName} onChange={e => setSatName(e.target.value)} placeholder="e.g. Cartosat-3" className="search-input" />
             </div>
             <div className="form-group">
-              <label>Type (optional)</label>
-              <input type="text" value={satType} onChange={e => setSatType(e.target.value)} placeholder="e.g. Space Station, Weather Satellite" className="search-input" />
+              <label>Type / Category (optional)</label>
+              <input 
+                type="text" 
+                list="satellite-categories"
+                value={satType} 
+                onChange={e => setSatType(e.target.value)} 
+                placeholder="e.g. Earth Observation & Radar Imaging" 
+                className="search-input" 
+              />
+              <datalist id="satellite-categories">
+                <option value="Earth Observation & Radar Imaging" />
+                <option value="Weather & Meteorology" />
+                <option value="Navigation & Positioning" />
+                <option value="Space Science & Solar Observation" />
+                <option value="Communication & Relay" />
+              </datalist>
             </div>
             <button type="submit" className="search-btn" disabled={addingSat}>
               {addingSat ? '⏳ Adding...' : '➕ Add Satellite'}
             </button>
           </form>
           <div className="norad-hint">
-            <h4>Common NORAD IDs</h4>
+            <h4>Quick NORAD Examples</h4>
             <div className="hint-grid">
               {[
-                { id: '25544', name: 'ISS' },
-                { id: '20580', name: 'NOAA-19' },
-                { id: '43013', name: 'Hubble' },
-                { id: '28654', name: 'NOAA-18' },
-                { id: '33591', name: 'NOAA-19' },
-                { id: '27424', name: 'XMM-Newton' },
+                { id: '44804', name: 'Cartosat-3', type: 'Earth Observation & Radar Imaging' },
+                { id: '51656', name: 'EOS-04 (RISAT-1A)', type: 'Earth Observation & Radar Imaging' },
+                { id: '58955', name: 'INSAT-3DS', type: 'Weather & Meteorology' },
+                { id: '56759', name: 'NVS-01', type: 'Navigation & Positioning' },
+                { id: '58694', name: 'XPoSat', type: 'Space Science & Solar Observation' },
+                { id: '52899', name: 'GSAT-24', type: 'Communication & Relay' },
               ].map(s => (
-                <button key={s.id} className="hint-chip" onClick={() => { setSatNorad(s.id); setSatName(s.name) }}>
+                <button key={s.id} className="hint-chip" onClick={() => { setSatNorad(s.id); setSatName(s.name); setSatType(s.type) }}>
                   {s.name} ({s.id})
                 </button>
               ))}
