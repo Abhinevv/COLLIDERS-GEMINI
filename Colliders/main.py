@@ -232,13 +232,13 @@ class Colliders:
 
 
 def download_tle_data():
-    """Download fresh TLE data from Celestrak"""
-    print("Downloading latest TLE data...\n")
+    """Download fresh TLE data from Celestrak or generate from seed data"""
+    print("Loading Indian satellite TLE data...\n")
     
     fetcher = TLEFetcher()
     satellites = {
-        '25544': 'iss.txt',        # ISS (International Space Station)
-        '43013': 'debris1.txt',     # HST (Hubble Space Telescope) - active, well-tracked
+        '44804': 'sat_44804.txt',      # Cartosat-3
+        '28944': 'debris_28944.txt',   # Resourcesat Debris
     }
     
     fetcher.fetch_multiple(satellites)
@@ -248,15 +248,28 @@ def download_tle_data():
 def main():
     """Main entry point"""
     
-    # Check if TLE data exists, download if not
-    if not os.path.exists('data/iss.txt'):
-        download_tle_data()
+    # Check if TLE data exists, generate/download if not
+    sat_file = 'data/sat_44804.txt'
+    deb_file = 'data/debris_28944.txt'
     
+    if not os.path.exists(sat_file) or not os.path.exists(deb_file):
+        try:
+            import seed_data
+            seed_data.seed()
+        except Exception:
+            download_tle_data()
+    
+    # Fallback to whatever sat files exist in data/
+    if not os.path.exists(sat_file):
+        sat_file = 'data/sat_44804.txt' if os.path.exists('data/sat_44804.txt') else 'data/iss.txt'
+    if not os.path.exists(deb_file):
+        deb_file = 'data/debris_28944.txt' if os.path.exists('data/debris_28944.txt') else 'data/debris1.txt'
+
     # Initialize system
     system = Colliders()
     system.setup(
-        satellite_tle='data/iss.txt',
-        debris_tle='data/debris1.txt'
+        satellite_tle=sat_file,
+        debris_tle=deb_file
     )
     
     # Run complete analysis

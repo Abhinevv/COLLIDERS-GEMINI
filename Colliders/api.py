@@ -285,12 +285,14 @@ def list_satellites():
     except Exception:
         # Fallback to minimal hardcoded list if DB is unavailable at startup
         satellites = {
-            '25544': {'name': 'ISS (ZARYA)', 'norad_id': '25544',
-                      'type': 'Space Station', 'description': 'International Space Station'},
-            '20580': {'name': 'HST', 'norad_id': '20580',
-                      'type': 'Space Telescope', 'description': 'Hubble Space Telescope'},
-            '43013': {'name': 'NOAA-19', 'norad_id': '43013',
-                      'type': 'Weather Satellite', 'description': 'NOAA-19 weather satellite'},
+            '58955': {'name': 'INSAT-3DS', 'norad_id': '58955',
+                      'type': 'Weather & Meteorology', 'description': 'Advanced third-generation meteorological satellite in geostationary orbit.'},
+            '44804': {'name': 'Cartosat-3', 'norad_id': '44804',
+                      'type': 'Earth Observation & Radar Imaging', 'description': 'Advanced agile high-resolution optical Earth imaging satellite.'},
+            '51656': {'name': 'EOS-04 (RISAT-1A)', 'norad_id': '51656',
+                      'type': 'Earth Observation & Radar Imaging', 'description': 'Radar Imaging Satellite with C-band Synthetic Aperture Radar.'},
+            '56759': {'name': 'NVS-01', 'norad_id': '56759',
+                      'type': 'Navigation & Positioning', 'description': 'Second-generation NavIC constellation satellite.'},
         }
 
     return jsonify({
@@ -2998,7 +3000,7 @@ def seed_default_debris():
 
 
 def seed_default_satellites():
-    """Seed satellites if fewer than 64 exist in DB"""
+    """Seed satellites if fewer than 49 exist in DB"""
     try:
         from database.db_manager import get_db_manager
         from database.models import Satellite
@@ -3007,7 +3009,7 @@ def seed_default_satellites():
         db = get_db_manager()
         session = db.get_session()
         try:
-            if session.query(Satellite).count() >= 64:
+            if session.query(Satellite).count() >= 49:
                 return
         finally:
             session.close()

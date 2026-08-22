@@ -1,3 +1,18 @@
+"""
+COLLIDERS - Seed Data Generator
+Populates colliders.db and local TLE cache with:
+1. Complete Indian Space Mission Catalog (49 Active Satellites across 5 categories)
+   - Weather & Meteorology
+   - Earth Observation & Radar Imaging
+   - Navigation & Positioning (NavIC)
+   - Space Science & Solar Observation
+   - Communication & Relay (GSAT / CMS)
+2. Realistic Orbital Debris Catalog (760+ Debris Objects)
+   - PSLV debris & upper stages
+   - Mission Shakti ASAT (Microsat-R) fragmentation cloud
+   - GSLV / LVM3 upper stages & GTO/GEO drift debris
+   - Major LEO/SSO orbital collision debris intersecting Indian satellite orbits
+"""
 
 import os
 import sys
@@ -11,7 +26,9 @@ from database.db_manager import get_db_manager
 from database.models import Satellite, DebrisObject
 from sgp4.api import Satrec
 
+
 def tle_checksum(line: str) -> int:
+    """Calculate standard NORAD TLE checksum modulo 10."""
     total = 0
     for ch in line[:-1]:
         if ch.isdigit():
@@ -20,9 +37,11 @@ def tle_checksum(line: str) -> int:
             total += 1
     return total % 10
 
+
 def build_tle_line1(satnum: int, intl_desig: str, epoch_yr: int,
                     epoch_day: float, ndot: float, bstar: float,
                     elem_set: int) -> str:
+    """Construct TLE line 1 with proper field spacing and checksum."""
     sn = f'{satnum:05d}'
     intl = f'{intl_desig:<8}'[:8]
     ey = f'{epoch_yr:02d}'
@@ -51,8 +70,10 @@ def build_tle_line1(satnum: int, intl_desig: str, epoch_yr: int,
     line = f'{line:<68}'[:68]
     return line + str(tle_checksum(line + '0'))
 
+
 def build_tle_line2(satnum: int, inc: float, raan: float, ecc: float,
                     argp: float, ma: float, mm: float, rev: int) -> str:
+    """Construct TLE line 2 with orbital elements and checksum."""
     sn = f'{satnum:05d}'
     inc_s  = f'{inc:8.4f}'
     raan_s = f'{raan:8.4f}'
@@ -66,20 +87,26 @@ def build_tle_line2(satnum: int, inc: float, raan: float, ecc: float,
     line = f'{line:<68}'[:68]
     return line + str(tle_checksum(line + '0'))
 
+
 def orbital_params_from_alt(apogee_km: float, perigee_km: float):
+    """Compute orbital eccentricity, mean motion (rev/day), and orbital period (minutes)."""
     Re = 6378.137
     mu = 398600.4418
     ra = Re + apogee_km
     rp = Re + perigee_km
     a  = (ra + rp) / 2.0
     e  = max(1e-7, min((ra - rp) / (ra + rp), 0.2))
-    n_rads = math.sqrt(mu / a**3)
-    n_revday = n_rads * 86400 / (2 * math.pi)
+    n_rads = math.sqrt(mu / (a ** 3))
+    n_revday = n_rads * 86400.0 / (2.0 * math.pi)
     period_min = 1440.0 / n_revday
     return e, n_revday, period_min
 
+
 def make_bstar(alt_km: float) -> float:
-    if alt_km > 1200:
+    """Estimate atmospheric drag BSTAR parameter based on altitude."""
+    if alt_km > 20000:
+        return 0.0
+    elif alt_km > 1200:
         return random.uniform(1e-6, 5e-6)
     elif alt_km > 800:
         return random.uniform(1e-5, 5e-5)
@@ -88,90 +115,202 @@ def make_bstar(alt_km: float) -> float:
     else:
         return random.uniform(2e-4, 1e-3)
 
-RAW_LEO_SATELLITES = [
-    ('25544', 'ISS (ZARYA)', 'Space Station', 'NASA/Roscosmos', 'International Space Station — crewed orbital laboratory ~408 km LEO.', 415, 51.64, 1998),
-    ('20580', 'HST', 'Space Telescope', 'NASA', 'Hubble Space Telescope — 2.4-m UV/optical/NIR telescope at ~540 km.', 540, 28.47, 1990),
-    ('43013', 'NOAA 20 (JPSS-1)', 'Weather Satellite', 'NOAA', 'NOAA 20 polar-orbiting environmental monitoring satellite ~824 km SSO.', 824, 98.72, 2017),
-    ('34264', 'NOAA-19', 'Weather Satellite', 'NOAA', 'NOAA-19 polar-orbiting operational environmental satellite ~850 km SSO.', 850, 98.71, 2009),
-    ('28654', 'NOAA-18', 'Weather Satellite', 'NOAA', 'NOAA-18 polar-orbiting weather satellite ~854 km SSO.', 854, 98.74, 2005),
-    ('39084', 'LANDSAT 8', 'Earth Observation', 'USGS/NASA', 'Landsat 8 land-imaging satellite ~705 km sun-synchronous orbit.', 705, 98.22, 2013),
-    ('49260', 'LANDSAT 9', 'Earth Observation', 'USGS/NASA', 'Landsat 9 land-imaging satellite ~705 km sun-synchronous orbit.', 705, 98.22, 2021),
-    ('25338', 'RADARSAT-1', 'Earth Observation', 'CSA', 'Canadian synthetic aperture radar satellite ~798 km SSO.', 798, 98.59, 1995),
-    ('32382', 'RADARSAT-2', 'Earth Observation', 'CSA/MDA', 'Canadian commercial SAR satellite ~798 km SSO.', 798, 98.58, 2007),
-    ('39634', 'SENTINEL-1A', 'Earth Observation', 'ESA', 'Copernicus C-band Synthetic Aperture Radar satellite ~693 km SSO.', 693, 98.18, 2014),
-    ('40697', 'SENTINEL-2A', 'Earth Observation', 'ESA', 'Copernicus high-resolution multispectral imaging satellite ~786 km SSO.', 786, 98.57, 2015),
-    ('42063', 'SENTINEL-2B', 'Earth Observation', 'ESA', 'Copernicus multispectral optical Earth observation satellite ~786 km SSO.', 786, 98.57, 2017),
-    ('41335', 'SENTINEL-3A', 'Earth Observation', 'ESA', 'Copernicus ocean and land topography / temperature sensor ~814 km SSO.', 814, 98.62, 2016),
-    ('43226', 'SENTINEL-3B', 'Earth Observation', 'ESA/Eumetsat', 'Copernicus ocean-colour and sea-surface-temperature sensor ~814 km.', 814, 98.62, 2018),
-    ('43641', 'SENTINEL-5P', 'Earth Observation', 'ESA', 'Copernicus atmospheric chemistry monitor (TROPOMI) ~824 km SSO.', 824, 98.74, 2017),
-    ('46984', 'SENTINEL-6 MF', 'Earth Observation', 'NASA/ESA/EUMETSAT', 'Sentinel-6 Michael Freilich ocean radar altimetry satellite ~1336 km.', 1336, 66.04, 2020),
-    ('48274', 'CSS (TIANHE)', 'Space Station', 'CNSA', 'Chinese Space Station core module ~390 km LEO.', 390, 41.47, 2021),
-    ('53239', 'CSS (WENTIAN)', 'Space Station Module', 'CNSA', 'Chinese Space Station Wentian laboratory module ~390 km LEO.', 390, 41.47, 2022),
-    ('54216', 'CSS (MENGTIAN)', 'Space Station Module', 'CNSA', 'Chinese Space Station Mengtian science experiment module ~390 km LEO.', 390, 41.47, 2022),
-    ('25994', 'TERRA (EOS AM-1)', 'Earth Observation', 'NASA', 'Flagship NASA Earth observation satellite in morning orbit ~705 km SSO.', 705, 98.20, 1999),
-    ('27424', 'AQUA (EOS PM-1)', 'Earth Observation', 'NASA', 'Flagship NASA Earth science satellite monitoring water cycle ~705 km SSO.', 705, 98.20, 2002),
-    ('28376', 'AURA (EOS Chem-1)', 'Earth Observation', 'NASA', 'NASA atmospheric chemistry and ozone monitoring satellite ~705 km SSO.', 705, 98.20, 2004),
-    ('37849', 'SUOMI NPP', 'Weather / Climate', 'NOAA/NASA', 'Suomi National Polar-orbiting Partnership weather satellite ~824 km SSO.', 824, 98.74, 2011),
-    ('41240', 'JASON-3', 'Earth Observation', 'NASA/CNES/NOAA', 'High-precision ocean surface altimetry satellite ~1336 km.', 1336, 66.04, 2016),
-    ('39452', 'SWARM A', 'Scientific', 'ESA', 'ESA constellation studying Earths magnetic field ~460 km polar orbit.', 460, 87.35, 2013),
-    ('39453', 'SWARM B', 'Scientific', 'ESA', 'ESA magnetic field survey constellation satellite ~520 km polar orbit.', 520, 87.98, 2013),
-    ('39451', 'SWARM C', 'Scientific', 'ESA', 'ESA magnetic field survey satellite paired with Swarm A ~460 km.', 460, 87.35, 2013),
-    ('36508', 'CRYOSAT 2', 'Earth Observation', 'ESA', 'ESA environmental research satellite measuring ice sheet thickness ~717 km.', 717, 92.00, 2010),
-    ('27386', 'ENVISAT', 'Earth Observation', 'ESA', 'Large European environmental research satellite (derelict) ~770 km SSO.', 770, 98.54, 2002),
-    ('29499', 'METOP-A', 'Weather Satellite', 'EUMETSAT', 'European operational polar meteorological satellite ~820 km SSO.', 820, 98.70, 2006),
-    ('38771', 'METOP-B', 'Weather Satellite', 'EUMETSAT', 'European operational polar meteorological satellite ~820 km SSO.', 820, 98.70, 2012),
-    ('43689', 'METOP-C', 'Weather Satellite', 'EUMETSAT', 'European polar weather satellite with microwave sounding ~820 km SSO.', 820, 98.70, 2018),
-    ('34602', 'GOCE', 'Scientific', 'ESA', 'Gravity Field and Steady-State Ocean Circulation Explorer ~260 km LEO.', 260, 96.70, 2009),
-    ('43476', 'GRACE-FO 1', 'Scientific', 'NASA/GFZ', 'Gravity Recovery and Climate Experiment Follow-On twin satellite ~490 km.', 490, 89.00, 2018),
-    ('43477', 'GRACE-FO 2', 'Scientific', 'NASA/GFZ', 'Gravity Recovery and Climate Experiment Follow-On twin satellite ~490 km.', 490, 89.00, 2018),
-    ('36795', 'CARTOSAT-2B', 'Earth Observation', 'ISRO', 'Indian high-resolution panchromatic Earth observation satellite ~630 km.', 630, 97.90, 2010),
-    ('44804', 'CARTOSAT-3', 'Earth Observation', 'ISRO', 'Advanced high-resolution Indian optical Earth imaging satellite ~505 km.', 505, 97.50, 2019),
-    ('44262', 'RISAT-2B', 'Earth Observation', 'ISRO', 'Indian X-band radar reconnaissance and Earth observation satellite ~556 km.', 556, 37.00, 2019),
-    ('47632', 'EOS-01', 'Earth Observation', 'ISRO', 'Indian synthetic aperture radar Earth imaging satellite ~575 km.', 575, 37.00, 2020),
-    ('48858', 'EOS-04 (RISAT-1A)', 'Earth Observation', 'ISRO', 'Indian C-band radar imaging satellite for agriculture and disaster management ~529 km.', 529, 97.50, 2022),
-    ('39766', 'ALOS-2 (DAICHI-2)', 'Earth Observation', 'JAXA', 'Japanese L-band synthetic aperture radar satellite ~628 km SSO.', 628, 97.90, 2014),
-    ('38337', 'GCOM-W1 (SHIZUKU)', 'Earth Observation', 'JAXA', 'Global Change Observation Mission water cycle monitoring satellite ~700 km SSO.', 700, 98.20, 2012),
-    ('43065', 'GCOM-C (SHIKISAI)', 'Earth Observation', 'JAXA', 'Global Change Observation Mission climate monitoring satellite ~800 km SSO.', 800, 98.60, 2017),
-    ('44713', 'STARLINK-1007', 'Communication', 'SpaceX', 'Starlink broadband constellation satellite ~550 km LEO.', 550, 53.05, 2019),
-    ('45044', 'STARLINK-1118', 'Communication', 'SpaceX', 'Starlink low-latency internet satellite ~550 km LEO.', 550, 53.05, 2020),
-    ('45056', 'STARLINK-1130', 'Communication', 'SpaceX', 'Starlink broadband constellation satellite ~550 km LEO.', 550, 53.05, 2020),
-    ('45360', 'STARLINK-1284', 'Communication', 'SpaceX', 'Starlink high-throughput communication satellite ~550 km LEO.', 550, 53.05, 2020),
-    ('45727', 'STARLINK-1433', 'Communication', 'SpaceX', 'Starlink internet constellation satellite ~550 km LEO.', 550, 53.05, 2020),
-    ('46140', 'STARLINK-1502', 'Communication', 'SpaceX', 'Starlink orbital broadband transmitter ~550 km LEO.', 550, 53.05, 2020),
-    ('46532', 'STARLINK-1692', 'Communication', 'SpaceX', 'Starlink internet constellation node ~550 km LEO.', 550, 53.05, 2020),
-    ('47149', 'STARLINK-1823', 'Communication', 'SpaceX', 'Starlink low-orbit communication relay ~550 km LEO.', 550, 53.05, 2020),
-    ('44057', 'ONEWEB-0012', 'Communication', 'OneWeb', 'OneWeb global low-latency constellation satellite ~1200 km polar orbit.', 1200, 87.40, 2019),
-    ('45133', 'ONEWEB-0028', 'Communication', 'OneWeb', 'OneWeb polar-orbit internet constellation satellite ~1200 km.', 1200, 87.40, 2020),
-    ('45425', 'ONEWEB-0045', 'Communication', 'OneWeb', 'OneWeb broadband relay satellite ~1200 km polar orbit.', 1200, 87.40, 2020),
-    ('45856', 'ONEWEB-0067', 'Communication', 'OneWeb', 'OneWeb broadband relay satellite ~1200 km polar orbit.', 1200, 87.40, 2020),
-    ('46490', 'ONEWEB-0082', 'Communication', 'OneWeb', 'OneWeb global satellite constellation node ~1200 km.', 1200, 87.40, 2020),
-    ('40069', 'IRIDIUM NEXT 102', 'Communication', 'Iridium Communications', 'Iridium NEXT LEO telecommunications satellite ~780 km polar orbit.', 780, 86.40, 2017),
-    ('41918', 'IRIDIUM NEXT 103', 'Communication', 'Iridium Communications', 'Iridium NEXT cross-linked voice/data relay satellite ~780 km.', 780, 86.40, 2017),
-    ('41921', 'IRIDIUM NEXT 106', 'Communication', 'Iridium Communications', 'Iridium NEXT satellite supporting global Aireon ADS-B tracking ~780 km.', 780, 86.40, 2017),
-    ('42803', 'IRIDIUM NEXT 113', 'Communication', 'Iridium Communications', 'Iridium NEXT polar constellation satellite ~780 km.', 780, 86.40, 2017),
-    ('43075', 'IRIDIUM NEXT 120', 'Communication', 'Iridium Communications', 'Iridium NEXT low-orbit global network satellite ~780 km.', 780, 86.40, 2017),
-    ('47530', 'PLANETSCOPE-2212', 'Earth Observation', 'Planet Labs', 'PlanetScope 3U Dove optical imaging CubeSat constellation ~500 km SSO.', 500, 97.45, 2021),
-    ('49810', 'PLANETSCOPE-2401', 'Earth Observation', 'Planet Labs', 'PlanetScope SuperDove high-resolution optical CubeSat ~500 km SSO.', 500, 97.45, 2022),
-    ('43810', 'SPIRE LEMUR-2-88', 'Weather Satellite', 'Spire Global', 'Spire Lemur 3U CubeSat for maritime AIS and GNSS weather occultation ~505 km.', 505, 97.50, 2018),
+
+# =============================================================================
+# 49 SATELLITES ACROSS 5 OPERATIONAL CATEGORIES
+# =============================================================================
+INDIAN_SATELLITE_CATALOG = [
+    # -------------------------------------------------------------------------
+    # 1. Weather & Meteorology (GEO / GSO ~35786 km)
+    # -------------------------------------------------------------------------
+    ('58955', 'INSAT-3DS', 'Weather & Meteorology', 'ISRO/IMD',
+     'Advanced third-generation meteorological satellite in geostationary orbit with 6-channel optical imager and 19-channel sounder for severe storm tracking.',
+     35786, 0.10, 2024),
+    ('41752', 'INSAT-3DR', 'Weather & Meteorology', 'ISRO/IMD',
+     'Operational meteorological satellite in geostationary orbit (74° E) with multi-spectral optical radiometer and atmospheric sounder for weather forecasting.',
+     35786, 0.05, 2016),
+    ('39216', 'INSAT-3D', 'Weather & Meteorology', 'ISRO/IMD',
+     'Dedicated geostationary meteorological satellite (82° E) providing continuous vertical atmospheric profiling and cyclone tracking.',
+     35786, 0.12, 2013),
+
+    # -------------------------------------------------------------------------
+    # 2. Earth Observation & Radar Imaging (LEO / Sun-Synchronous Orbit)
+    # -------------------------------------------------------------------------
+    ('60465', 'EOS-08', 'Earth Observation & Radar Imaging', 'ISRO',
+     'New-generation Earth Observation micro-satellite (SSLV-D3) carrying Electro-Optical Infrared Payload (EOIR) and UV dosimeter in ~475 km orbit.',
+     475, 37.40, 2024),
+    ('55562', 'EOS-07', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Technology demonstration Earth observation micro-satellite (SSLV-D2) in ~450 km circular orbit with mm-Wave payload and spectrum monitoring.',
+     450, 37.20, 2023),
+    ('54361', 'EOS-06 (Oceansat-3)', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Third-generation oceanographic monitoring satellite in ~742 km SSO carrying Ocean Color Monitor (OCM-3), Ku-band Scatterometer, and SSTM.',
+     742, 98.30, 2022),
+    ('51656', 'EOS-04 (RISAT-1A)', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Heavy C-band Synthetic Aperture Radar (SAR) all-weather Earth imaging satellite in ~529 km sun-synchronous orbit for agriculture and disaster management.',
+     529, 97.50, 2022),
+    ('46905', 'EOS-01', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Advanced X-band Synthetic Aperture Radar (SAR) satellite in ~575 km orbit providing 24/7 all-weather surveillance and natural resource mapping.',
+     575, 37.00, 2020),
+    ('44804', 'Cartosat-3', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Advanced third-generation agile high-resolution optical imaging satellite (0.28m resolution) in ~505 km sun-synchronous polar orbit.',
+     505, 97.50, 2019),
+    ('43111', 'Cartosat-2F', 'Earth Observation & Radar Imaging', 'ISRO',
+     'High-resolution Earth observation satellite in Cartosat-2 series carrying panchromatic and 4-band multispectral sensors in ~505 km SSO.',
+     505, 97.50, 2018),
+    ('42767', 'Cartosat-2E', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Sub-meter high-resolution optical reconnaissance and cartographic satellite in ~505 km sun-synchronous polar orbit.',
+     505, 97.50, 2017),
+    ('41948', 'Cartosat-2D', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Dedicated high-resolution cartographic satellite providing high-agility spot scene imaging in ~505 km polar orbit.',
+     505, 97.50, 2017),
+    ('41877', 'Resourcesat-2A', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Three-tier multi-spectral optical remote sensing satellite carrying LISS-4 (5.8m), LISS-3 (23.5m), and AWiFS (56m) sensors in ~817 km SSO.',
+     817, 98.70, 2016),
+    ('37387', 'Resourcesat-2', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Multi-spectral resource monitoring satellite in ~817 km SSO with enhanced radiometric performance for agricultural and hydrological surveys.',
+     817, 98.70, 2011),
+    ('44857', 'RISAT-2BR1', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Active X-band Synthetic Aperture Radar reconnaissance satellite with 0.35m spatial resolution in ~576 km inclination 37° orbit.',
+     576, 37.00, 2019),
+    ('44262', 'RISAT-2B', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Indian radar reconnaissance satellite carrying an indigenous 3.6-meter radial rib antenna X-band SAR in ~556 km orbit.',
+     556, 37.00, 2019),
+    ('39086', 'SARAL', 'Earth Observation & Radar Imaging', 'ISRO/CNES',
+     'Joint Indo-French oceanographic altimetry satellite in ~781 km SSO with Ka-band AltiKa altimeter for sea surface height and wave height monitoring.',
+     781, 98.50, 2013),
+    ('43719', 'HysIS', 'Earth Observation & Radar Imaging', 'ISRO',
+     'Hyperspectral Imaging Satellite in ~636 km SSO carrying 55 VNIR and 165 SWIR continuous spectral bands for environmental and mineralogical mapping.',
+     636, 97.90, 2018),
+    ('44114', 'EMISAT', 'Earth Observation & Radar Imaging', 'ISRO/DRDO',
+     'Electronic Intelligence (ELINT) satellite carrying the Kautilya radio frequency spectrum surveillance package in ~748 km SSO.',
+     748, 98.40, 2019),
+
+    # -------------------------------------------------------------------------
+    # 3. Navigation & Positioning (NavIC / IRNSS - GEO & IGSO ~35786 km)
+    # -------------------------------------------------------------------------
+    ('56759', 'NVS-01', 'Navigation & Positioning', 'ISRO',
+     'Second-generation NavIC constellation satellite equipped with an indigenous Space-Grade Rubidium Atomic Frequency Standard (RAFS) in GSO.',
+     35786, 5.00, 2023),
+    ('43286', 'IRNSS-1I', 'Navigation & Positioning', 'ISRO',
+     'NavIC regional navigation constellation satellite operating in an inclined geosynchronous orbit (29.5° inclination, ~35786 km).',
+     35786, 29.50, 2018),
+    ('41384', 'IRNSS-1F', 'Navigation & Positioning', 'ISRO',
+     'NavIC regional navigation satellite in geostationary orbit (32.5° E longitude slot, ~35786 km) broadcasting L5 and S-band navigation signals.',
+     35786, 5.00, 2016),
+    ('41241', 'IRNSS-1E', 'Navigation & Positioning', 'ISRO',
+     'NavIC regional positioning satellite in inclined geosynchronous orbit (111.75° E crossing, 29.5° inclination, ~35786 km).',
+     35786, 29.50, 2016),
+    ('40547', 'IRNSS-1D', 'Navigation & Positioning', 'ISRO',
+     'NavIC satellite in inclined geosynchronous orbit (111.75° E crossing, 29.5° inclination, ~35786 km) supporting aviation and maritime positioning.',
+     35786, 29.50, 2015),
+    ('40269', 'IRNSS-1C', 'Navigation & Positioning', 'ISRO',
+     'NavIC navigation satellite in geostationary orbit (83° E longitude slot, ~35786 km) providing continuous timing and positioning across India.',
+     35786, 5.00, 2014),
+    ('39635', 'IRNSS-1B', 'Navigation & Positioning', 'ISRO',
+     'NavIC constellation satellite operating in inclined geosynchronous orbit (55° E crossing, 29.5° inclination, ~35786 km).',
+     35786, 29.50, 2014),
+
+    # -------------------------------------------------------------------------
+    # 4. Space Science & Solar Observation
+    # -------------------------------------------------------------------------
+    ('57735', 'Aditya-L1', 'Space Science & Solar Observation', 'ISRO',
+     'India’s flagship solar coronagraphy and space weather observatory monitoring solar flares, CMEs, and magnetic fields from Sun-Earth L1 halo orbit proxy.',
+     695, 19.30, 2023),
+    ('58694', 'XPoSat', 'Space Science & Solar Observation', 'ISRO/RRI',
+     'X-ray Polarimeter Satellite carrying POLIX and XSPECT instruments in ~650 km low-inclination (6°) orbit studying cosmic celestial sources.',
+     650, 6.00, 2024),
+    ('40930', 'AstroSat', 'Space Science & Solar Observation', 'ISRO',
+     'India’s multi-wavelength astronomical observatory carrying UVIT, LAXPC, CZTI, and SXT instruments in ~650 km (6° inclination) near-equatorial orbit.',
+     650, 6.00, 2015),
+    ('44441', 'Chandrayaan-2 Orbiter', 'Space Science & Solar Observation', 'ISRO',
+     'Advanced lunar exploration orbiter with ultra-high resolution camera (OHRC 0.25m), SAR, and infrared spectrometer (simulated high orbit tracker).',
+     720, 90.00, 2019),
+
+    # -------------------------------------------------------------------------
+    # 5. Communication & Relay (GSAT & CMS - GEO ~35786 km)
+    # -------------------------------------------------------------------------
+    ('61850', 'GSAT-N2 (GSAT-20)', 'Communication & Relay', 'ISRO/NSIL',
+     'High Throughput Satellite (HTS) providing 48 Gbps Ka-band broadband and in-flight connectivity across the Indian region in GEO.',
+     35786, 0.05, 2024),
+    ('52899', 'GSAT-24', 'Communication & Relay', 'ISRO/NSIL',
+     'Dedicated 24 Ku-band transponder telecommunications satellite leased for Direct-to-Home (DTH) broadcast services across India in GEO (41.2° E).',
+     35786, 0.05, 2022),
+    ('44034', 'GSAT-31', 'Communication & Relay', 'ISRO',
+     'High-reliability Ku-band telecommunications satellite in GEO (48° E) supporting VSAT networks, DTH, and disaster emergency communications.',
+     35786, 0.05, 2019),
+    ('45026', 'GSAT-30', 'Communication & Relay', 'ISRO',
+     'High-power C-band and Ku-band communications satellite in GEO (83° E) replacing INSAT-4A for television broadcast and telecom.',
+     35786, 0.05, 2020),
+    ('43694', 'GSAT-29', 'Communication & Relay', 'ISRO',
+     'Multi-beam Ka/Ku-band high-throughput communication satellite in GEO (55° E) connecting remote Jammu & Kashmir and North-East regions.',
+     35786, 0.08, 2018),
+    ('42744', 'GSAT-19', 'Communication & Relay', 'ISRO',
+     'Next-generation experimental Ka/Ku-band communication satellite in GEO (74° E) launched on GSLV Mk III D1.',
+     35786, 0.08, 2017),
+    ('41793', 'GSAT-18', 'Communication & Relay', 'ISRO',
+     'Heavy 3404 kg telecommunications satellite carrying 48 transponders in Normal C, Upper Extended C, and Ku bands in GEO (74° E).',
+     35786, 0.05, 2016),
+    ('42814', 'GSAT-17', 'Communication & Relay', 'ISRO',
+     'Multi-mission communication satellite in GEO (93.5° E) carrying Normal C-band, Extended C-band, S-band mobile, and Search and Rescue (SAR) transponders.',
+     35786, 0.05, 2017),
+    ('40332', 'GSAT-16', 'Communication & Relay', 'ISRO',
+     '48-transponder heavy communications satellite in GEO (55° E) augmenting satellite telecommunications and television broadcasting.',
+     35786, 0.05, 2014),
+    ('41028', 'GSAT-15', 'Communication & Relay', 'ISRO',
+     'Ku-band communication satellite in GEO (93.5° E) carrying 24 Ku-band transponders and GAGAN navigation payload.',
+     35786, 0.05, 2015),
+    ('39498', 'GSAT-14', 'Communication & Relay', 'ISRO',
+     'Communication satellite in GEO (74° E) carrying 6 Extended C-band and 6 Ku-band transponders powered by indigenous cryogenic stage.',
+     35786, 0.05, 2014),
+    ('43824', 'GSAT-11', 'Communication & Relay', 'ISRO',
+     'India’s heaviest communication satellite (5854 kg) providing 16 Gbps high-throughput connectivity across 32 user beams in Ka/Ku bands in GEO (74° E).',
+     35786, 0.05, 2018),
+    ('38779', 'GSAT-10', 'Communication & Relay', 'ISRO',
+     'Multi-mission communication satellite in GEO (83° E) with 30 transponders in C-band, Ku-band, and GAGAN navigation transponder.',
+     35786, 0.05, 2012),
+    ('42695', 'GSAT-9 (South Asia Sat)', 'Communication & Relay', 'ISRO',
+     'Geostationary communications satellite in GEO (48° E) providing Ku-band connectivity and tele-education to South Asian neighboring nations.',
+     35786, 0.05, 2017),
+    ('37605', 'GSAT-8', 'Communication & Relay', 'ISRO',
+     'High-power 3100 kg satellite in GEO (55° E) carrying 24 Ku-band transponders and the primary GAGAN SBAS payload.',
+     35786, 0.05, 2011),
+    ('43865', 'GSAT-7A', 'Communication & Relay', 'ISRO',
+     'Dedicated military communication satellite in GEO providing secure real-time Ku-band network-centric connectivity for the Indian Air Force and Army.',
+     35786, 0.05, 2018),
+    ('39234', 'GSAT-7 (Rukmini)', 'Communication & Relay', 'ISRO',
+     'India’s first dedicated naval multi-band defense communications satellite in GEO (74° E) enabling real-time naval command and maritime domain awareness.',
+     35786, 0.05, 2013),
+    ('40880', 'GSAT-6', 'Communication & Relay', 'ISRO',
+     'Strategic multimedia communication satellite in GEO (83° E) equipped with a 6-meter unfurlable S-band antenna for handheld defense terminals.',
+     35786, 0.05, 2015),
+    ('47256', 'CMS-01 (GSAT-12R)', 'Communication & Relay', 'ISRO',
+     'Dedicated Extended C-band communications satellite in GEO (83° E) providing coverage over Indian mainland, Andaman & Nicobar, and Lakshadweep.',
+     35786, 0.05, 2020),
 ]
 
+
 def generate_satellites():
+    """Generate satellite model records with valid SGP4 TLEs for all 49 Indian satellites."""
     now = datetime.utcnow()
     epoch_yr = now.year % 100
     epoch_day = now.timetuple().tm_yday + (now.hour * 3600 + now.minute * 60 + now.second) / 86400.0
     satellites = []
-    rng = random.Random(1337)
+    rng = random.Random(1947)
 
-    for idx, (norad_id, name, sat_type, operator, description, alt_km, inc_deg, launch_yr) in enumerate(RAW_LEO_SATELLITES):
+    for idx, (norad_id, name, sat_type, operator, description, alt_km, inc_deg, launch_yr) in enumerate(INDIAN_SATELLITE_CATALOG):
         nid = int(norad_id)
-        ecc, mm, period_min = orbital_params_from_alt(alt_km + rng.uniform(0, 5), alt_km - rng.uniform(0, 5))
-        raan = (idx * 360.0 / len(RAW_LEO_SATELLITES)) % 360.0
+        # Squeeze altitude dispersion
+        alt_offset = rng.uniform(-2.0, 2.0)
+        actual_alt = max(300.0, alt_km + alt_offset)
+
+        ecc, mm, period_min = orbital_params_from_alt(actual_alt, actual_alt - rng.uniform(0.1, 2.0))
+        raan = (idx * 360.0 / len(INDIAN_SATELLITE_CATALOG)) % 360.0
         argp = rng.uniform(0, 360)
         ma = rng.uniform(0, 360)
-        ndot = rng.uniform(1e-6, 5e-5)
-        bstar = make_bstar(alt_km)
+        ndot = rng.uniform(1e-7, 2e-5)
+        bstar = make_bstar(actual_alt)
         elem_set = 100 + (idx % 800)
-        rev = 1000 + idx * 50
+        rev = 500 + idx * 50
         intl = f'{(launch_yr % 100):02d}{(idx % 90 + 10):03d}A'
 
         l1 = build_tle_line1(nid, intl, epoch_yr, epoch_day, ndot, bstar, elem_set)
@@ -200,35 +339,41 @@ def generate_satellites():
 
     return satellites
 
+
+# =============================================================================
+# REALISTIC DEBRIS FAMILIES THREATENING INDIAN SATELLITE ORBITAL REGIMES
+# =============================================================================
 DEBRIS_FAMILIES = [
-    ('FENGYUN 1C DEB',    29500, 110, 'PRC',  840,  920,  790,  870, 97.5, 99.5, 'DEBRIS',       'SMALL'),
-    ('COSMOS 2251 DEB',   33760, 100, 'CIS',  770,  820,  730,  790, 73.5, 74.5, 'DEBRIS',       'SMALL'),
-    ('IRIDIUM 33 DEB',    33430,  80, 'USA',  770,  830,  740,  800, 86.0, 86.9, 'DEBRIS',       'SMALL'),
-    ('COSMOS 1408 DEB',   49250,  75, 'CIS',  430,  560,  340,  470, 82.5, 83.5, 'DEBRIS',       'SMALL'),
-    ('SL-16 R/B & DEB',   23080,  45, 'CIS',  840,  870,  820,  850, 70.8, 71.4, 'ROCKET BODY',  'LARGE'),
-    ('SL-8 R/B & DEB',    14820,  45, 'CIS',  960, 1010,  930,  980, 82.9, 83.7, 'ROCKET BODY',  'LARGE'),
-    ('DELTA 2 DEB',       20900,  40, 'USA',  820,  900,  780,  860, 28.3, 28.9, 'ROCKET BODY',  'MEDIUM'),
-    ('ARIANE 4/5 DEB',    24820,  35, 'FR',   790,  870,  740,  810, 51.6, 52.4, 'ROCKET BODY',  'MEDIUM'),
-    ('CZ-4 DEB',          25900,  35, 'PRC',  700,  800,  650,  750, 98.0, 99.0, 'DEBRIS',       'MEDIUM'),
-    ('CZ-3B DEB',         43160,  30, 'PRC',  280,  450,  200,  350, 27.0, 28.5, 'ROCKET BODY',  'LARGE'),
-    ('PEGASUS DEB',       22820,  30, 'USA',  740,  790,  680,  750, 28.2, 28.8, 'DEBRIS',       'SMALL'),
-    ('STEP 2 DEB',        23450,  25, 'USA',  780,  830,  740,  790, 28.3, 29.0, 'DEBRIS',       'SMALL'),
-    ('ATLAS CENTAUR DEB', 18700,  25, 'USA',  900, 1050,  850, 1000, 27.9, 28.5, 'ROCKET BODY',  'LARGE'),
-    ('RESURS-O DEB',      36597,  25, 'CIS',  595,  640,  560,  610, 97.8, 98.4, 'DEBRIS',       'SMALL'),
-    ('NIMBUS 4 DEB',       4461,  20, 'USA', 1080, 1120, 1040, 1080, 99.5,100.2, 'DEBRIS',       'SMALL'),
-    ('OPS 4682 DEB',      19120,  20, 'USA',  830,  880,  790,  840, 82.3, 83.1, 'DEBRIS',       'SMALL'),
-    ('SPOT 1 DEB',        16613,  20, 'FR',   820,  860,  800,  840, 98.6, 99.2, 'DEBRIS',       'SMALL'),
-    ('ERS-1 DEB',         21574,  20, 'ESA',  780,  810,  760,  790, 98.4, 98.9, 'DEBRIS',       'SMALL'),
-    ('METEOR 2 DEB',      12456,  20, 'CIS',  960,  990,  930,  960, 81.5, 82.3, 'DEBRIS',       'SMALL'),
-    ('KOMPSAT-2 DEB',     29268,  15, 'ROK',  680,  720,  660,  700, 98.0, 98.6, 'DEBRIS',       'SMALL'),
-    ('RESOURCESAT DEB',   28944,  15, 'IND',  815,  845,  795,  825, 97.8, 98.4, 'DEBRIS',       'SMALL'),
-    ('CERISE DEB',        23605,  15, 'FR',   650,  690,  630,  670, 98.0, 98.6, 'DEBRIS',       'SMALL'),
-    ('THOR ABLE DEB',      1500,  20, 'USA',  850,  920,  800,  880, 28.2, 28.8, 'DEBRIS',       'SMALL'),
-    ('TOPEX DEB',         22076,  15, 'USA', 1330, 1360, 1310, 1340, 66.0, 66.1, 'DEBRIS',       'SMALL'),
-    ('STARLINK DEB',      45900,  25, 'USA',  530,  560,  510,  540, 53.0, 53.1, 'DEBRIS',       'SMALL'),
+    # 1. Indian Launch & ASAT Debris (LEO / SSO)
+    ('PSLV C-45 DEB',      44120, 60, 'IND',  730,  760,  710,  745, 98.2, 98.6, 'DEBRIS',       'SMALL'),
+    ('PSLV C-37 DEB',      41950, 50, 'IND',  490,  525,  470,  510, 97.3, 97.7, 'DEBRIS',       'SMALL'),
+    ('MICROSAT-R DEB',     44100, 65, 'IND',  260,  550,  240,  460, 96.2, 96.8, 'DEBRIS',       'SMALL'),
+    ('PSLV R/B STAGE-4',   44858, 25, 'IND',  560,  590,  540,  575, 36.8, 37.2, 'ROCKET BODY',  'LARGE'),
+    ('GSLV MK-III R/B',    42745, 20, 'IND', 35600,35900,  250,  600, 19.0, 21.5, 'ROCKET BODY',  'LARGE'),
+    ('RESOURCESAT-1 DEB',  28944, 30, 'IND',  800,  835,  790,  820, 98.4, 98.9, 'DEBRIS',       'SMALL'),
+
+    # 2. Major LEO / SSO Collision & Breakup Clouds (Cross-cutting Indian SSO Orbits)
+    ('COSMOS 2251 DEB',   33760, 85, 'CIS',  760,  820,  730,  790, 73.5, 74.5, 'DEBRIS',       'SMALL'),
+    ('FENGYUN 1C DEB',    29500, 90, 'PRC',  820,  910,  780,  860, 98.2, 99.2, 'DEBRIS',       'SMALL'),
+    ('IRIDIUM 33 DEB',    33430, 65, 'USA',  760,  810,  740,  790, 86.0, 86.8, 'DEBRIS',       'SMALL'),
+    ('COSMOS 1408 DEB',   49250, 65, 'CIS',  420,  540,  350,  470, 82.3, 83.2, 'DEBRIS',       'SMALL'),
+    ('CZ-4B DEB',         25900, 40, 'PRC',  680,  780,  640,  740, 98.0, 98.8, 'DEBRIS',       'MEDIUM'),
+    ('SL-16 R/B & DEB',   23080, 35, 'CIS',  830,  865,  815,  845, 70.8, 71.4, 'ROCKET BODY',  'LARGE'),
+    ('SL-8 R/B & DEB',    14820, 35, 'CIS',  950, 1000,  920,  970, 82.8, 83.5, 'ROCKET BODY',  'LARGE'),
+    ('RESURS-O DEB',      36597, 25, 'CIS',  590,  635,  560,  610, 97.7, 98.3, 'DEBRIS',       'SMALL'),
+    ('KOMPSAT-2 DEB',     29268, 20, 'ROK',  675,  715,  655,  695, 98.0, 98.5, 'DEBRIS',       'SMALL'),
+    ('SPOT 1 DEB',        16613, 20, 'FR',   815,  850,  795,  835, 98.5, 99.0, 'DEBRIS',       'SMALL'),
+    ('CERISE DEB',        23605, 15, 'FR',   650,  685,  630,  670, 98.0, 98.5, 'DEBRIS',       'SMALL'),
+
+    # 3. Geostationary & Geosynchronous Drift Debris (Threatening INSAT, GSAT, NavIC)
+    ('GEO GRAVEYARD DEB', 62100, 35, 'INT', 35900,36200,35800,36100,  0.0,  5.0, 'DEBRIS',       'SMALL'),
+    ('GEO TITAN TRANSTAGE',18700, 20, 'USA', 35700,36050,35600,35950,  2.0, 12.0, 'ROCKET BODY',  'LARGE'),
+    ('GEO ARIANE R/B',    24820, 25, 'ESA', 35750,36150,35700,36000,  0.5,  7.0, 'ROCKET BODY',  'LARGE'),
 ]
 
+
 def generate_debris_objects(target_count=760):
+    """Generate debris objects with realistic orbital distribution across LEO, SSO, and GEO."""
     rng = random.Random(2026)
     now = datetime.utcnow()
     objects = []
@@ -245,7 +390,7 @@ def generate_debris_objects(target_count=760):
             used_ids.add(norad_id)
 
             apogee  = rng.uniform(apog_min, apog_max)
-            perigee = rng.uniform(peri_min, min(peri_max, apogee - 5))
+            perigee = rng.uniform(peri_min, min(peri_max, apogee - 2))
             inc     = rng.uniform(inc_min, inc_max)
             raan    = rng.uniform(0, 360)
             argp    = rng.uniform(0, 360)
@@ -260,10 +405,10 @@ def generate_debris_objects(target_count=760):
                 epoch_dt.hour * 3600 + epoch_dt.minute * 60 + epoch_dt.second
             ) / 86400.0
 
-            ndot  = rng.uniform(1e-7, 5e-5)
+            ndot  = rng.uniform(1e-7, 3e-5)
             bstar = make_bstar((apogee + perigee) / 2)
             elem_set = rng.randint(100, 999)
-            rev = rng.randint(1000, 99999)
+            rev = rng.randint(500, 99999)
             intl = f'{(1990 + (norad_id % 34)):04d}{(norad_id % 100):03d}D'
 
             try:
@@ -297,17 +442,24 @@ def generate_debris_objects(target_count=760):
 
     extra_needed = max(0, target_count - len(objects))
     for k in range(extra_needed):
-        norad_id = 91000 + k
+        norad_id = 92000 + k
         while norad_id in used_ids:
             norad_id += 1
         used_ids.add(norad_id)
 
-        apogee  = rng.uniform(350, 1250)
-        perigee = rng.uniform(300, apogee - 10)
-        inc     = rng.choice([28.5, 41.5, 51.6, 53.0, 66.0, 74.0, 82.5, 86.4, 97.5, 98.2])
-        raan    = rng.uniform(0, 360)
-        argp    = rng.uniform(0, 360)
-        ma      = rng.uniform(0, 360)
+        # Mix of SSO LEO debris and GSO drift debris
+        if k % 5 == 0:
+            apogee = rng.uniform(35800, 36200)
+            perigee = rng.uniform(35700, apogee - 10)
+            inc = rng.choice([0.1, 2.5, 5.0, 10.0, 15.0, 29.5])
+        else:
+            apogee = rng.uniform(450, 950)
+            perigee = rng.uniform(400, apogee - 5)
+            inc = rng.choice([37.0, 37.4, 96.6, 97.5, 98.3, 98.7])
+
+        raan = rng.uniform(0, 360)
+        argp = rng.uniform(0, 360)
+        ma   = rng.uniform(0, 360)
 
         ecc, mm, period_min = orbital_params_from_alt(apogee, perigee)
 
@@ -318,12 +470,12 @@ def generate_debris_objects(target_count=760):
             epoch_dt.hour * 3600 + epoch_dt.minute * 60 + epoch_dt.second
         ) / 86400.0
 
-        ndot  = rng.uniform(1e-7, 5e-5)
+        ndot  = rng.uniform(1e-7, 3e-5)
         bstar = make_bstar((apogee + perigee) / 2)
         elem_set = rng.randint(100, 999)
-        rev = rng.randint(1000, 99999)
+        rev = rng.randint(500, 99999)
         intl = f'{(1995 + k % 30):04d}{(k % 100):03d}L'
-        country = rng.choice(['USA', 'CIS', 'PRC', 'FR', 'IND', 'JPN', 'ESA'])
+        country = rng.choice(['IND', 'USA', 'CIS', 'PRC', 'ESA'])
 
         try:
             l1 = build_tle_line1(norad_id, intl, epoch_yr, epoch_day, ndot, bstar, elem_set)
@@ -334,7 +486,7 @@ def generate_debris_objects(target_count=760):
 
         launch_yr = 1995 + (norad_id % 30)
         launch_dt = datetime(launch_yr, rng.randint(1, 12), rng.randint(1, 28))
-        name = f'LEO DEBRIS OBJ-{norad_id}'
+        name = f'ORBITAL DEBRIS #{norad_id}'
 
         objects.append(DebrisObject(
             norad_id=str(norad_id),
@@ -356,7 +508,9 @@ def generate_debris_objects(target_count=760):
 
     return objects
 
+
 def write_tle_cache(satellites, debris_objects):
+    """Save all TLE data to disk cache data/sat_<id>.txt and data/debris_<id>.txt."""
     os.makedirs('data', exist_ok=True)
     os.makedirs('data/tle_cache', exist_ok=True)
 
@@ -373,13 +527,15 @@ def write_tle_cache(satellites, debris_objects):
         with open(path2, 'w', encoding='utf-8') as f:
             f.write(d.name + '\n' + d.tle_line1 + '\n' + d.tle_line2 + '\n')
 
+
 def seed():
+    """Execute complete database seeding and cache population."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
 
     db = get_db_manager(db_path='data/colliders.db')
 
-    print("\n=== Seeding 64 LEO Satellites ===")
+    print("\n=== Seeding 49 Indian Operational Satellites ===")
     session = db.get_session()
     try:
         session.query(Satellite).delete()
@@ -390,11 +546,11 @@ def seed():
             session.add(sat)
         session.commit()
         total_sats = session.query(Satellite).count()
-        print(f"  [OK] Successfully seeded {total_sats} LEO satellites in DB")
+        print(f"  [OK] Successfully seeded {total_sats} Indian satellites in DB")
     finally:
         session.close()
 
-    print("\n=== Seeding 700+ LEO Debris Objects ===")
+    print("\n=== Seeding 760+ Orbital Debris Objects ===")
     session = db.get_session()
     try:
         session.query(DebrisObject).delete()
@@ -409,7 +565,7 @@ def seed():
             print(f"  Inserted batch {start//BATCH + 1}: {len(batch)} objects")
 
         total_debris = session.query(DebrisObject).count()
-        print(f"  [OK] Successfully seeded {total_debris} LEO debris objects in DB")
+        print(f"  [OK] Successfully seeded {total_debris} debris objects in DB")
     finally:
         session.close()
 
@@ -424,6 +580,7 @@ def seed():
         session.close()
 
     print("\n=== Seeding Complete ===\n")
+
 
 if __name__ == '__main__':
     seed()
