@@ -300,9 +300,30 @@ export default function CollisionAnalysis() {
               {/* Debris Telemetry & Orbital Elements Card */}
               {(() => {
                 const deb = result?.debris_info || jobStatus?.debris_info || {}
-                const classification = deb.classification || deb.type || 'Debris'
                 const nameDisplay = deb.name || `Object ${debrisId}`
-                const nameClassDisplay = deb.name_classification || `${nameDisplay} / ${classification}`
+                
+                const clsInfo = (() => {
+                  const typeStr = (deb.classification || deb.type || '').toUpperCase()
+                  const nameStr = (deb.name || '').toUpperCase()
+                  if (typeStr.includes('ROCKET') || typeStr.includes('R/B') || nameStr.includes(' R/B') || nameStr.includes('STAGE') || nameStr.includes('TRANSTAGE') || nameStr.includes('ARIANE R/B') || nameStr.includes('PSLV R/B') || nameStr.includes('GSLV R/B')) {
+                    return { icon: '🚀', className: 'Rocket Body', meaning: 'Spent upper stage / launch vehicle body', color: '#ff9800' }
+                  }
+                  if (typeStr.includes('FRAGMENT') || typeStr.includes('DEB') || nameStr.includes('DEB') || nameStr.includes('OBJ-') || nameStr.includes('BREAKUP') || nameStr.includes('COLLISION')) {
+                    return { icon: '🔹', className: 'Fragment', meaning: 'Pieces created by breakup/collision', color: '#4fc3f7' }
+                  }
+                  if (typeStr.includes('DEFUNCT') || typeStr.includes('DERELICT') || nameStr.includes('DEFUNCT') || nameStr.includes('DERELICT') || nameStr.includes('ENVISAT')) {
+                    return { icon: '⚫', className: 'Defunct Satellite', meaning: 'Satellite no longer operational', color: '#b0bec5' }
+                  }
+                  if (typeStr.includes('SATELLITE') || typeStr.includes('PAYLOAD') || typeStr.includes('WEATHER') || typeStr.includes('EARTH OBSERVATION') || typeStr.includes('NAVIGATION') || typeStr.includes('COMMUNICATION') || typeStr.includes('SPACE SCIENCE')) {
+                    return { icon: '🛰️', className: 'Active Satellite', meaning: 'Currently operational spacecraft', color: '#00e676' }
+                  }
+                  if (!typeStr || typeStr === 'UNKNOWN' || typeStr === 'UNASSIGNED' || typeStr === 'N/A') {
+                    return { icon: '❓', className: 'Unknown Object', meaning: 'Insufficient information for classification', color: '#ba68c8' }
+                  }
+                  return { icon: '🔹', className: 'Fragment', meaning: 'Pieces created by breakup/collision', color: '#4fc3f7' }
+                })()
+
+                const nameClassDisplay = deb.name_classification || `${nameDisplay} / ${clsInfo.icon} ${clsInfo.className}`
                 
                 const incDisplay = deb.inclination_deg != null 
                   ? `${Number(deb.inclination_deg).toFixed(2)}°` 
@@ -335,12 +356,34 @@ export default function CollisionAnalysis() {
                     marginTop: '20px',
                     padding: '16px',
                     background: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(100, 255, 218, 0.2)',
+                    border: `1px solid ${clsInfo.color}55`,
                     borderRadius: '10px'
                   }}>
-                    <h4 style={{ color: '#64ffda', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      🛸 Debris Orbital Telemetry & Classification
+                    <h4 style={{ color: clsInfo.color, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {clsInfo.icon} Debris Telemetry & Primary Classification
                     </h4>
+
+                    {/* Classification details ribbon */}
+                    <div style={{
+                      padding: '8px 12px',
+                      marginBottom: '12px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '8px'
+                    }}>
+                      <div>
+                        <span style={{ color: '#aaa', fontSize: '0.85rem', marginRight: '8px' }}>Class:</span>
+                        <span style={{ color: clsInfo.color, fontWeight: 'bold' }}>{clsInfo.icon} {clsInfo.className}</span>
+                      </div>
+                      <div style={{ color: '#bbb', fontSize: '0.85rem' }}>
+                        <span style={{ color: '#888' }}>Meaning:</span> {clsInfo.meaning}
+                      </div>
+                    </div>
+
                     <div className="result-details" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
                       <div className="detail-item">
                         <span className="detail-label">Object Name / Classification:</span>

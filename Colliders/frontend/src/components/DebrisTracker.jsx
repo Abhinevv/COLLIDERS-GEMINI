@@ -175,30 +175,76 @@ export default function DebrisTracker() {
         </div>
       )}
 
-      {selectedDebris && (
-        <div className="modal-overlay" onClick={() => setSelectedDebris(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Debris Details</h3>
-              <button className="modal-close" onClick={() => setSelectedDebris(null)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="details-grid">
-                <div className="detail-item"><span className="detail-label">Name / Classification:</span><span className="detail-value" style={{ color: '#64ffda' }}>{selectedDebris.name_classification || `${selectedDebris.name} / ${selectedDebris.classification || selectedDebris.type || 'Debris'}`}</span></div>
-                <div className="detail-item"><span className="detail-label">NORAD ID:</span><span className="detail-value">{selectedDebris.norad_id}</span></div>
-                <div className="detail-item"><span className="detail-label">Type:</span><span className="detail-value">{selectedDebris.classification || selectedDebris.type || 'Debris'}</span></div>
-                <div className="detail-item"><span className="detail-label">Country:</span><span className="detail-value">{selectedDebris.country || 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Altitude / Perigee & Apogee:</span><span className="detail-value">{selectedDebris.mean_altitude != null ? `${Number(selectedDebris.mean_altitude).toFixed(1)} km (Perigee: ${selectedDebris.perigee_km != null ? Number(selectedDebris.perigee_km).toFixed(1) : '—'} km / Apogee: ${selectedDebris.apogee_km != null ? Number(selectedDebris.apogee_km).toFixed(1) : '—'} km)` : (selectedDebris.apogee_km != null ? `Perigee: ${selectedDebris.perigee_km} km / Apogee: ${selectedDebris.apogee_km} km` : 'N/A')}</span></div>
-                <div className="detail-item"><span className="detail-label">Inclination:</span><span className="detail-value">{selectedDebris.inclination_deg != null ? `${Number(selectedDebris.inclination_deg).toFixed(2)}°` : 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Period:</span><span className="detail-value">{selectedDebris.period_minutes != null ? `${Number(selectedDebris.period_minutes).toFixed(2)} min` : 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Eccentricity:</span><span className="detail-value" style={{ fontFamily: 'monospace' }}>{selectedDebris.eccentricity != null ? (typeof selectedDebris.eccentricity === 'number' ? selectedDebris.eccentricity.toFixed(6) : selectedDebris.eccentricity) : 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">RCS Size:</span><span className="detail-value">{selectedDebris.rcs_size || 'N/A'}</span></div>
-                <div className="detail-item"><span className="detail-label">Launch Date:</span><span className="detail-value">{selectedDebris.launch_date || 'N/A'}</span></div>
+      {selectedDebris && (() => {
+        const clsInfo = (() => {
+          const typeStr = (selectedDebris.classification || selectedDebris.type || '').toUpperCase()
+          const nameStr = (selectedDebris.name || '').toUpperCase()
+          if (typeStr.includes('ROCKET') || typeStr.includes('R/B') || nameStr.includes(' R/B') || nameStr.includes('STAGE') || nameStr.includes('TRANSTAGE') || nameStr.includes('ARIANE R/B') || nameStr.includes('PSLV R/B') || nameStr.includes('GSLV R/B')) {
+            return { icon: '🚀', className: 'Rocket Body', meaning: 'Spent upper stage / launch vehicle body', color: '#ff9800' }
+          }
+          if (typeStr.includes('FRAGMENT') || typeStr.includes('DEB') || nameStr.includes('DEB') || nameStr.includes('OBJ-') || nameStr.includes('BREAKUP') || nameStr.includes('COLLISION')) {
+            return { icon: '🔹', className: 'Fragment', meaning: 'Pieces created by breakup/collision', color: '#4fc3f7' }
+          }
+          if (typeStr.includes('DEFUNCT') || typeStr.includes('DERELICT') || nameStr.includes('DEFUNCT') || nameStr.includes('DERELICT') || nameStr.includes('ENVISAT')) {
+            return { icon: '⚫', className: 'Defunct Satellite', meaning: 'Satellite no longer operational', color: '#b0bec5' }
+          }
+          if (typeStr.includes('SATELLITE') || typeStr.includes('PAYLOAD') || typeStr.includes('WEATHER') || typeStr.includes('EARTH OBSERVATION') || typeStr.includes('NAVIGATION') || typeStr.includes('COMMUNICATION') || typeStr.includes('SPACE SCIENCE')) {
+            return { icon: '🛰️', className: 'Active Satellite', meaning: 'Currently operational spacecraft', color: '#00e676' }
+          }
+          if (!typeStr || typeStr === 'UNKNOWN' || typeStr === 'UNASSIGNED' || typeStr === 'N/A') {
+            return { icon: '❓', className: 'Unknown Object', meaning: 'Insufficient information for classification', color: '#ba68c8' }
+          }
+          return { icon: '🔹', className: 'Fragment', meaning: 'Pieces created by breakup/collision', color: '#4fc3f7' }
+        })()
+
+        return (
+          <div className="modal-overlay" onClick={() => setSelectedDebris(null)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>{clsInfo.icon} Debris Details & Classification</h3>
+                <button className="modal-close" onClick={() => setSelectedDebris(null)}>×</button>
+              </div>
+              <div className="modal-body">
+                {/* Classification Highlight Card */}
+                <div style={{
+                  padding: '12px 16px',
+                  marginBottom: '16px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${clsInfo.color}55`,
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{ fontSize: '2rem' }}>{clsInfo.icon}</div>
+                  <div>
+                    <div style={{ color: clsInfo.color, fontWeight: 'bold', fontSize: '1.05rem' }}>
+                      {clsInfo.className}
+                    </div>
+                    <div style={{ color: '#aaa', fontSize: '0.85rem' }}>
+                      {clsInfo.meaning}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="details-grid">
+                  <div className="detail-item"><span className="detail-label">Name / Classification:</span><span className="detail-value" style={{ color: '#64ffda' }}>{selectedDebris.name_classification || `${selectedDebris.name} / ${clsInfo.icon} ${clsInfo.className}`}</span></div>
+                  <div className="detail-item"><span className="detail-label">NORAD ID:</span><span className="detail-value">{selectedDebris.norad_id}</span></div>
+                  <div className="detail-item"><span className="detail-label">Primary Class:</span><span className="detail-value" style={{ color: clsInfo.color }}>{clsInfo.icon} {clsInfo.className}</span></div>
+                  <div className="detail-item"><span className="detail-label">Meaning:</span><span className="detail-value">{clsInfo.meaning}</span></div>
+                  <div className="detail-item"><span className="detail-label">Country:</span><span className="detail-value">{selectedDebris.country || 'N/A'}</span></div>
+                  <div className="detail-item"><span className="detail-label">Altitude / Perigee & Apogee:</span><span className="detail-value">{selectedDebris.mean_altitude != null ? `${Number(selectedDebris.mean_altitude).toFixed(1)} km (Perigee: ${selectedDebris.perigee_km != null ? Number(selectedDebris.perigee_km).toFixed(1) : '—'} km / Apogee: ${selectedDebris.apogee_km != null ? Number(selectedDebris.apogee_km).toFixed(1) : '—'} km)` : (selectedDebris.apogee_km != null ? `Perigee: ${selectedDebris.perigee_km} km / Apogee: ${selectedDebris.apogee_km} km` : 'N/A')}</span></div>
+                  <div className="detail-item"><span className="detail-label">Inclination:</span><span className="detail-value">{selectedDebris.inclination_deg != null ? `${Number(selectedDebris.inclination_deg).toFixed(2)}°` : 'N/A'}</span></div>
+                  <div className="detail-item"><span className="detail-label">Period:</span><span className="detail-value">{selectedDebris.period_minutes != null ? `${Number(selectedDebris.period_minutes).toFixed(2)} min` : 'N/A'}</span></div>
+                  <div className="detail-item"><span className="detail-label">Eccentricity:</span><span className="detail-value" style={{ fontFamily: 'monospace' }}>{selectedDebris.eccentricity != null ? (typeof selectedDebris.eccentricity === 'number' ? selectedDebris.eccentricity.toFixed(6) : selectedDebris.eccentricity) : 'N/A'}</span></div>
+                  <div className="detail-item"><span className="detail-label">RCS Size:</span><span className="detail-value">{selectedDebris.rcs_size || 'N/A'}</span></div>
+                  <div className="detail-item"><span className="detail-label">Launch Date:</span><span className="detail-value">{selectedDebris.launch_date || 'N/A'}</span></div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

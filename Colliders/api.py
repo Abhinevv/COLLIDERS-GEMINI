@@ -49,6 +49,75 @@ CORS(app)  # Enable CORS for frontend access
 _propagator_cache = {}
 
 
+def classify_orbital_object(name: str, raw_type: str, is_active: bool = True, is_satellite: bool = False) -> dict:
+    """
+    Recommended Primary Classification Scheme:
+    1. 🛰️ Active Satellite   - Currently operational spacecraft
+    2. ⚫ Defunct Satellite   - Satellite no longer operational
+    3. 🚀 Rocket Body        - Spent upper stage / launch vehicle body
+    4. 🔹 Fragment           - Pieces created by breakup/collision
+    5. ❓ Unknown Object      - Insufficient information for classification
+    """
+    upper_name = str(name or '').upper().strip()
+    upper_type = str(raw_type or '').upper().strip()
+
+    # 1. Rocket Body
+    if any(k in upper_type for k in ('ROCKET', 'R/B', 'STAGE', 'BOOSTER', 'UPPER STAGE')) or \
+       any(k in upper_name for k in (' R/B', 'STAGE', 'CENTAUR', 'TRANSTAGE', 'ARIANE R/B', 'PSLV R/B', 'GSLV R/B', 'SL-8', 'SL-16', 'DELTA 2 R/B', 'UPPER STAGE')):
+        return {
+            'class': 'Rocket Body',
+            'icon': '🚀',
+            'display': '🚀 Rocket Body',
+            'meaning': 'Spent upper stage / launch vehicle body'
+        }
+
+    # 2. Fragment
+    if any(k in upper_type for k in ('FRAGMENT', 'DEB', 'BREAKUP', 'COLLISION', 'PIECE')) or \
+       any(k in upper_name for k in ('DEB', 'FRAGMENT', 'PIECE', 'OBJ-', 'BREAKUP', 'COLLISION')):
+        return {
+            'class': 'Fragment',
+            'icon': '🔹',
+            'display': '🔹 Fragment',
+            'meaning': 'Pieces created by breakup/collision'
+        }
+
+    # 3. Defunct Satellite
+    if (not is_active and (is_satellite or 'PAYLOAD' in upper_type or 'SATELLITE' in upper_type)) or \
+       any(k in upper_type for k in ('DEFUNCT', 'DERELICT', 'DEAD', 'INACTIVE')) or \
+       any(k in upper_name for k in ('DEFUNCT', 'DERELICT', 'DEAD', 'INACTIVE', 'ENVISAT')):
+        return {
+            'class': 'Defunct Satellite',
+            'icon': '⚫',
+            'display': '⚫ Defunct Satellite',
+            'meaning': 'Satellite no longer operational'
+        }
+
+    # 4. Active Satellite
+    if is_satellite or any(k in upper_type for k in ('SATELLITE', 'PAYLOAD', 'WEATHER', 'EARTH OBSERVATION', 'NAVIGATION', 'COMMUNICATION', 'SPACE SCIENCE', 'SCIENTIFIC', 'RADAR', 'METEOROLOGY')):
+        return {
+            'class': 'Active Satellite',
+            'icon': '🛰️',
+            'display': '🛰️ Active Satellite',
+            'meaning': 'Currently operational spacecraft'
+        }
+
+    # 5. Unknown Object
+    if not upper_type or upper_type in ('UNKNOWN', 'UNASSIGNED', 'N/A', 'NONE', 'OTHER', ''):
+        return {
+            'class': 'Unknown Object',
+            'icon': '❓',
+            'display': '❓ Unknown Object',
+            'meaning': 'Insufficient information for classification'
+        }
+
+    return {
+        'class': 'Fragment',
+        'icon': '🔹',
+        'display': '🔹 Fragment',
+        'meaning': 'Pieces created by breakup/collision'
+    }
+
+
 def get_object_telemetry_info(identifier, prop=None, default_type='DEBRIS'):
     """
     Extract comprehensive orbital telemetry and classification for a satellite or debris object.
@@ -59,6 +128,9 @@ def get_object_telemetry_info(identifier, prop=None, default_type='DEBRIS'):
         'name': f'Object {identifier}' if identifier else 'Unknown',
         'type': default_type,
         'classification': default_type,
+        'classification_icon': '🔹',
+        'classification_display': default_type,
+        'classification_meaning': 'Orbital object',
         'name_classification': f'Object {identifier} / {default_type}',
         'inclination': None,
         'inclination_deg': None,
@@ -104,6 +176,8 @@ def get_object_telemetry_info(identifier, prop=None, default_type='DEBRIS'):
                 pass
 
     # 3. Check database (Satellite and DebrisObject tables)
+    is_sat = False
+    is_active = True
     try:
         from database.db_manager import get_db_manager
         from database.models import Satellite, DebrisObject
@@ -112,6 +186,8 @@ def get_object_telemetry_info(identifier, prop=None, default_type='DEBRIS'):
         try:
             sat_row = session.query(Satellite).filter_by(norad_id=identifier_str).first()
             if sat_row:
+                is_sat = True
+                is_active = sat_row.active
                 if sat_row.name:
                     info['name'] = sat_row.name
                 info['type'] = sat_row.type or 'Payload'
@@ -184,8 +260,7 @@ def get_object_telemetry_info(identifier, prop=None, default_type='DEBRIS'):
     # 5. Handle simulated debris
     if identifier_str.startswith('SIM-'):
         info['name'] = f'Simulated Debris ({identifier_str})'
-        info['type'] = 'Debris'
-        info['classification'] = 'Debris (Simulated Fragment)'
+        info['type'] = 'Fragment'
         if info.get('inclination') is None:
             info['inclination'] = 51.64
         if info.get('eccentricity') is None:
@@ -199,20 +274,13 @@ def get_object_telemetry_info(identifier, prop=None, default_type='DEBRIS'):
 
     # 6. Normalize category / classification and create composite display name
     raw_type = info.get('type') or ''
-    upper_type = str(raw_type).upper().strip()
-    if not upper_type or upper_type in ('UNKNOWN', 'N/A', 'NONE', ''):
-        classification = 'Unknown Fragment if unassigned'
-    elif 'ROCKET' in upper_type or 'R/B' in upper_type:
-        classification = 'Rocket Body'
-    elif 'DEB' in upper_type:
-        classification = 'Debris'
-    elif 'PAYLOAD' in upper_type or 'SATELLITE' in upper_type:
-        classification = 'Payload'
-    else:
-        classification = str(raw_type).title()
-        
-    info['classification'] = classification
-    info['name_classification'] = f"{info['name']} / {classification}"
+    cls_data = classify_orbital_object(info.get('name'), raw_type, is_active=is_active, is_satellite=is_sat)
+
+    info['classification'] = cls_data['class']
+    info['classification_icon'] = cls_data['icon']
+    info['classification_display'] = cls_data['display']
+    info['classification_meaning'] = cls_data['meaning']
+    info['name_classification'] = f"{info['name']} / {cls_data['display']}"
     info['inclination_deg'] = info.get('inclination')
     info['period_minutes'] = info.get('orbital_period')
     info['mean_altitude_km'] = info.get('mean_altitude')
@@ -3000,7 +3068,7 @@ def seed_default_debris():
 
 
 def seed_default_satellites():
-    """Seed satellites if fewer than 49 exist in DB"""
+    """Seed satellites if fewer than 47 exist in DB"""
     try:
         from database.db_manager import get_db_manager
         from database.models import Satellite
@@ -3009,7 +3077,7 @@ def seed_default_satellites():
         db = get_db_manager()
         session = db.get_session()
         try:
-            if session.query(Satellite).count() >= 49:
+            if session.query(Satellite).count() >= 47:
                 return
         finally:
             session.close()

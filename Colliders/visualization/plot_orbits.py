@@ -1017,16 +1017,24 @@ class OrbitVisualizer:
             
             # Object Name / Classification
             obj_type = info.get('classification') or info.get('type')
-            if not obj_type or str(obj_type).strip().upper() in ('UNKNOWN', 'N/A', 'NONE', ''):
-                classification = 'Unknown Fragment if unassigned'
-            elif 'ROCKET' in str(obj_type).upper() or 'R/B' in str(obj_type).upper():
-                classification = 'Rocket Body'
-            elif 'DEB' in str(obj_type).upper():
-                classification = 'Debris'
-            elif 'PAYLOAD' in str(obj_type).upper() or 'SATELLITE' in str(obj_type).upper():
-                classification = 'Payload'
+            upper_type = str(obj_type or '').strip().upper()
+            upper_name = str(name or '').strip().upper()
+            
+            if any(k in upper_type for k in ('ROCKET', 'R/B', 'STAGE', 'BOOSTER', 'UPPER STAGE')) or \
+               any(k in upper_name for k in (' R/B', 'STAGE', 'CENTAUR', 'TRANSTAGE', 'ARIANE R/B', 'PSLV R/B', 'GSLV R/B', 'SL-8', 'SL-16', 'DELTA 2 R/B')):
+                classification = '🚀 Rocket Body'
+            elif any(k in upper_type for k in ('FRAGMENT', 'DEB', 'BREAKUP', 'COLLISION', 'PIECE')) or \
+                 any(k in upper_name for k in ('DEB', 'FRAGMENT', 'PIECE', 'OBJ-', 'BREAKUP')):
+                classification = '🔹 Fragment'
+            elif any(k in upper_type for k in ('DEFUNCT', 'DERELICT', 'DEAD', 'INACTIVE')) or \
+                 any(k in upper_name for k in ('DEFUNCT', 'DERELICT', 'DEAD', 'INACTIVE', 'ENVISAT')):
+                classification = '⚫ Defunct Satellite'
+            elif i == 0 or any(k in upper_type for k in ('SATELLITE', 'PAYLOAD', 'WEATHER', 'EARTH OBSERVATION', 'NAVIGATION', 'COMMUNICATION', 'SPACE SCIENCE', 'RADAR')):
+                classification = '🛰️ Active Satellite'
+            elif not upper_type or upper_type in ('UNKNOWN', 'UNASSIGNED', 'N/A', 'NONE', ''):
+                classification = '❓ Unknown Object'
             else:
-                classification = str(obj_type).title()
+                classification = '🔹 Fragment'
             
             name_classification = info.get('name_classification')
             if not name_classification:

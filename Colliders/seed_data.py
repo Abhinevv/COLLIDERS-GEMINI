@@ -213,18 +213,12 @@ INDIAN_SATELLITE_CATALOG = [
     # -------------------------------------------------------------------------
     # 4. Space Science & Solar Observation
     # -------------------------------------------------------------------------
-    ('57735', 'Aditya-L1', 'Space Science & Solar Observation', 'ISRO',
-     'India’s flagship solar coronagraphy and space weather observatory monitoring solar flares, CMEs, and magnetic fields from Sun-Earth L1 halo orbit proxy.',
-     695, 19.30, 2023),
     ('58694', 'XPoSat', 'Space Science & Solar Observation', 'ISRO/RRI',
      'X-ray Polarimeter Satellite carrying POLIX and XSPECT instruments in ~650 km low-inclination (6°) orbit studying cosmic celestial sources.',
      650, 6.00, 2024),
     ('40930', 'AstroSat', 'Space Science & Solar Observation', 'ISRO',
      'India’s multi-wavelength astronomical observatory carrying UVIT, LAXPC, CZTI, and SXT instruments in ~650 km (6° inclination) near-equatorial orbit.',
      650, 6.00, 2015),
-    ('44441', 'Chandrayaan-2 Orbiter', 'Space Science & Solar Observation', 'ISRO',
-     'Advanced lunar exploration orbiter with ultra-high resolution camera (OHRC 0.25m), SAR, and infrared spectrometer (simulated high orbit tracker).',
-     720, 90.00, 2019),
 
     # -------------------------------------------------------------------------
     # 5. Communication & Relay (GSAT & CMS - GEO ~35786 km)
@@ -345,30 +339,31 @@ def generate_satellites():
 # =============================================================================
 DEBRIS_FAMILIES = [
     # 1. Indian Launch & ASAT Debris (LEO / SSO)
-    ('PSLV C-45 DEB',      44120, 60, 'IND',  730,  760,  710,  745, 98.2, 98.6, 'DEBRIS',       'SMALL'),
-    ('PSLV C-37 DEB',      41950, 50, 'IND',  490,  525,  470,  510, 97.3, 97.7, 'DEBRIS',       'SMALL'),
-    ('MICROSAT-R DEB',     44100, 65, 'IND',  260,  550,  240,  460, 96.2, 96.8, 'DEBRIS',       'SMALL'),
-    ('PSLV R/B STAGE-4',   44858, 25, 'IND',  560,  590,  540,  575, 36.8, 37.2, 'ROCKET BODY',  'LARGE'),
-    ('GSLV MK-III R/B',    42745, 20, 'IND', 35600,35900,  250,  600, 19.0, 21.5, 'ROCKET BODY',  'LARGE'),
-    ('RESOURCESAT-1 DEB',  28944, 30, 'IND',  800,  835,  790,  820, 98.4, 98.9, 'DEBRIS',       'SMALL'),
+    ('PSLV C-45 DEB',      44120, 60, 'IND',  730,  760,  710,  745, 98.2, 98.6, 'Fragment',          'SMALL'),
+    ('PSLV C-37 DEB',      41950, 50, 'IND',  490,  525,  470,  510, 97.3, 97.7, 'Fragment',          'SMALL'),
+    ('MICROSAT-R DEB',     44100, 65, 'IND',  260,  550,  240,  460, 96.2, 96.8, 'Fragment',          'SMALL'),
+    ('PSLV R/B STAGE-4',   44858, 25, 'IND',  560,  590,  540,  575, 36.8, 37.2, 'Rocket Body',       'LARGE'),
+    ('GSLV MK-III R/B',    42745, 20, 'IND', 35600,35900,  250,  600, 19.0, 21.5, 'Rocket Body',       'LARGE'),
+    ('RESOURCESAT-1 DEB',  28944, 30, 'IND',  800,  835,  790,  820, 98.4, 98.9, 'Fragment',          'SMALL'),
+    ('ENVISAT (DERELICT)', 27386,  1, 'ESA',  765,  775,  760,  770, 98.5, 98.6, 'Defunct Satellite', 'LARGE'),
 
     # 2. Major LEO / SSO Collision & Breakup Clouds (Cross-cutting Indian SSO Orbits)
-    ('COSMOS 2251 DEB',   33760, 85, 'CIS',  760,  820,  730,  790, 73.5, 74.5, 'DEBRIS',       'SMALL'),
-    ('FENGYUN 1C DEB',    29500, 90, 'PRC',  820,  910,  780,  860, 98.2, 99.2, 'DEBRIS',       'SMALL'),
-    ('IRIDIUM 33 DEB',    33430, 65, 'USA',  760,  810,  740,  790, 86.0, 86.8, 'DEBRIS',       'SMALL'),
-    ('COSMOS 1408 DEB',   49250, 65, 'CIS',  420,  540,  350,  470, 82.3, 83.2, 'DEBRIS',       'SMALL'),
-    ('CZ-4B DEB',         25900, 40, 'PRC',  680,  780,  640,  740, 98.0, 98.8, 'DEBRIS',       'MEDIUM'),
-    ('SL-16 R/B & DEB',   23080, 35, 'CIS',  830,  865,  815,  845, 70.8, 71.4, 'ROCKET BODY',  'LARGE'),
-    ('SL-8 R/B & DEB',    14820, 35, 'CIS',  950, 1000,  920,  970, 82.8, 83.5, 'ROCKET BODY',  'LARGE'),
-    ('RESURS-O DEB',      36597, 25, 'CIS',  590,  635,  560,  610, 97.7, 98.3, 'DEBRIS',       'SMALL'),
-    ('KOMPSAT-2 DEB',     29268, 20, 'ROK',  675,  715,  655,  695, 98.0, 98.5, 'DEBRIS',       'SMALL'),
-    ('SPOT 1 DEB',        16613, 20, 'FR',   815,  850,  795,  835, 98.5, 99.0, 'DEBRIS',       'SMALL'),
-    ('CERISE DEB',        23605, 15, 'FR',   650,  685,  630,  670, 98.0, 98.5, 'DEBRIS',       'SMALL'),
+    ('COSMOS 2251 DEB',   33760, 85, 'CIS',  760,  820,  730,  790, 73.5, 74.5, 'Fragment',          'SMALL'),
+    ('FENGYUN 1C DEB',    29500, 90, 'PRC',  820,  910,  780,  860, 98.2, 99.2, 'Fragment',          'SMALL'),
+    ('IRIDIUM 33 DEB',    33430, 65, 'USA',  760,  810,  740,  790, 86.0, 86.8, 'Fragment',          'SMALL'),
+    ('COSMOS 1408 DEB',   49250, 65, 'CIS',  420,  540,  350,  470, 82.3, 83.2, 'Fragment',          'SMALL'),
+    ('CZ-4B DEB',         25900, 40, 'PRC',  680,  780,  640,  740, 98.0, 98.8, 'Fragment',          'MEDIUM'),
+    ('SL-16 R/B',         23080, 35, 'CIS',  830,  865,  815,  845, 70.8, 71.4, 'Rocket Body',       'LARGE'),
+    ('SL-8 R/B',          14820, 35, 'CIS',  950, 1000,  920,  970, 82.8, 83.5, 'Rocket Body',       'LARGE'),
+    ('RESURS-O DEB',      36597, 25, 'CIS',  590,  635,  560,  610, 97.7, 98.3, 'Fragment',          'SMALL'),
+    ('KOMPSAT-2 DEB',     29268, 20, 'ROK',  675,  715,  655,  695, 98.0, 98.5, 'Fragment',          'SMALL'),
+    ('SPOT 1 DEB',        16613, 20, 'FR',   815,  850,  795,  835, 98.5, 99.0, 'Fragment',          'SMALL'),
+    ('CERISE DEB',        23605, 15, 'FR',   650,  685,  630,  670, 98.0, 98.5, 'Fragment',          'SMALL'),
 
     # 3. Geostationary & Geosynchronous Drift Debris (Threatening INSAT, GSAT, NavIC)
-    ('GEO GRAVEYARD DEB', 62100, 35, 'INT', 35900,36200,35800,36100,  0.0,  5.0, 'DEBRIS',       'SMALL'),
-    ('GEO TITAN TRANSTAGE',18700, 20, 'USA', 35700,36050,35600,35950,  2.0, 12.0, 'ROCKET BODY',  'LARGE'),
-    ('GEO ARIANE R/B',    24820, 25, 'ESA', 35750,36150,35700,36000,  0.5,  7.0, 'ROCKET BODY',  'LARGE'),
+    ('GEO GRAVEYARD DEB', 62100, 35, 'INT', 35900,36200,35800,36100,  0.0,  5.0, 'Fragment',          'SMALL'),
+    ('GEO TITAN TRANSTAGE',18700, 20, 'USA', 35700,36050,35600,35950,  2.0, 12.0, 'Rocket Body',       'LARGE'),
+    ('GEO ARIANE R/B',    24820, 25, 'ESA', 35750,36150,35700,36000,  0.5,  7.0, 'Rocket Body',       'LARGE'),
 ]
 
 
@@ -486,12 +481,26 @@ def generate_debris_objects(target_count=760):
 
         launch_yr = 1995 + (norad_id % 30)
         launch_dt = datetime(launch_yr, rng.randint(1, 12), rng.randint(1, 28))
-        name = f'ORBITAL DEBRIS #{norad_id}'
+        
+        # Distribute extra objects across Recommended classes
+        extra_type_roll = rng.random()
+        if extra_type_roll < 0.75:
+            extra_type = 'Fragment'
+            name = f'LEO FRAGMENT #{norad_id}'
+        elif extra_type_roll < 0.90:
+            extra_type = 'Rocket Body'
+            name = f'SPENT UPPER STAGE #{norad_id}'
+        elif extra_type_roll < 0.96:
+            extra_type = 'Defunct Satellite'
+            name = f'DERELICT PAYLOAD #{norad_id}'
+        else:
+            extra_type = 'Unknown Object'
+            name = f'UNCLASSIFIED OBJ #{norad_id}'
 
         objects.append(DebrisObject(
             norad_id=str(norad_id),
             name=name,
-            type='DEBRIS',
+            type=extra_type,
             rcs_size=rng.choice(['SMALL', 'MEDIUM', 'LARGE']),
             country=country,
             launch_date=launch_dt,
@@ -535,7 +544,7 @@ def seed():
 
     db = get_db_manager(db_path='data/colliders.db')
 
-    print("\n=== Seeding 49 Indian Operational Satellites ===")
+    print("\n=== Seeding 47 Indian Operational Satellites ===")
     session = db.get_session()
     try:
         session.query(Satellite).delete()
