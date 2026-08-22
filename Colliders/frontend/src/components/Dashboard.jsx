@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getHealth } from '../api'
 
 export default function Dashboard({ onNavigate }) {
@@ -87,9 +87,13 @@ export default function Dashboard({ onNavigate }) {
       <div className="section">
         <h3>Quick Actions</h3>
         <div className="action-grid">
+          <button className="action-card" onClick={() => onNavigate('manage')}>
+            <span className="action-icon">➕</span>
+            <span className="action-text">Add / Manage Satellites</span>
+          </button>
           <button className="action-card" onClick={() => onNavigate('debris')}>
             <span className="action-icon">🔍</span>
-            <span className="action-text">Search Debris</span>
+            <span className="action-text">Search & Add Debris</span>
           </button>
           <button className="action-card" onClick={() => window.open('/api/visualization/', '_blank')}>
             <span className="action-icon">📊</span>
@@ -97,7 +101,7 @@ export default function Dashboard({ onNavigate }) {
           </button>
           <button className="action-card" onClick={() => onNavigate('collision')}>
             <span className="action-icon">⚡</span>
-            <span className="action-text">Run Analysis</span>
+            <span className="action-text">Run Collision Analysis</span>
           </button>
           <button className="action-card" onClick={() => window.open('/api/docs', '_blank')}>
             <span className="action-icon">📥</span>

@@ -1,7 +1,8 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import Landing from './components/Landing'
 
 import Dashboard from './components/Dashboard'
+import SatelliteManager from './components/SatelliteManager'
 import DebrisTracker from './components/DebrisTracker'
 import CollisionAnalysis from './components/CollisionAnalysis'
 import RiskRanking from './components/RiskRanking'
@@ -42,6 +43,13 @@ export default function App() {
             onClick={() => setActiveTab('dashboard')}
           >
             📊 Dashboard
+          </button>
+
+          <button
+            className={'nav-tab' + (activeTab === 'manage' ? ' active' : '')}
+            onClick={() => setActiveTab('manage')}
+          >
+            🛰️ Satellite Manager
           </button>
 
           <button
@@ -95,6 +103,10 @@ export default function App() {
 
           <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
             <Dashboard onNavigate={setActiveTab} />
+          </div>
+
+          <div style={{ display: activeTab === 'manage' ? 'block' : 'none' }}>
+            <SatelliteManager />
           </div>
 
           <div style={{ display: activeTab === 'debris' ? 'block' : 'none' }}>
